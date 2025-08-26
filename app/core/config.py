@@ -8,7 +8,7 @@ load_dotenv()
 
 class Settings(BaseSettings):
     # Application settings
-    app_name: str = Field(default="FastAPI Backend", description="Application name")
+    app_name: str = Field(default="Token Investment Platform", description="Application name")
     app_version: str = Field(default="1.0.0", description="Application version")
     debug: bool = Field(default=False, description="Debug mode")
     
@@ -28,6 +28,40 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(
         default=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")),
         description="Access token expiration time in minutes"
+    )
+    
+    # Circle API settings
+    circle_api_key: str = Field(
+        default=os.getenv("CIRCLE_API_KEY", ""),
+        description="Circle API key"
+    )
+    circle_base_url: str = Field(
+        default=os.getenv("CIRCLE_BASE_URL", "https://api.circle.com/v1"),
+        description="Circle API base URL"
+    )
+    circle_webhook_secret: str = Field(
+        default=os.getenv("CIRCLE_WEBHOOK_SECRET", ""),
+        description="Circle webhook secret"
+    )
+    
+    # Blockchain settings
+    network: str = Field(
+        default=os.getenv("NETWORK", "POLYGON"),
+        description="Blockchain network"
+    )
+    escrow_wallet_address: str = Field(
+        default=os.getenv("ESCROW_WALLET_ADDRESS", ""),
+        description="Default escrow wallet address"
+    )
+    
+    # File upload settings
+    upload_dir: str = Field(
+        default=os.getenv("UPLOAD_DIR", "uploads"),
+        description="File upload directory"
+    )
+    max_file_size: int = Field(
+        default=int(os.getenv("MAX_FILE_SIZE", "10485760")),  # 10MB
+        description="Maximum file size in bytes"
     )
     
     # CORS settings

@@ -4,7 +4,8 @@ from sqlalchemy import pool
 from alembic import context
 from app.core.config import settings
 from app.core.database import Base
-from app.models.user import User  # Import all models here
+# Import all models to ensure they are registered with SQLAlchemy
+from app.models import User, Project, Investment, Payment, UserSession
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

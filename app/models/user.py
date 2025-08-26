@@ -1,32 +1,44 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum
+from sqlalchemy import Column, String, Boolean, DateTime, Enum, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 import enum
+import uuid
 
 class UserType(str, enum.Enum):
     """User type enumeration"""
     SME = "sme"
     INVESTOR = "investor"
+    ADMIN = "admin"
+
+class UserStatus(str, enum.Enum):
+    """User status enumeration"""
+    ACTIVE = "active"
+    SUSPENDED = "suspended"
+    PENDING = "pending"
 
 class User(Base):
-    """User model with type support"""
+    """Enhanced User model with additional fields"""
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String, unique=True, index=True, nullable=False)
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    user_type = Column(Enum(UserType), nullable=False, default=UserType.SME)
+    name = Column(String, nullable=False)
+    user_type = Column(Enum(UserType), nullable=False, default=UserType.INVESTOR)
+    company = Column(String)  # For SMEs
+    status = Column(Enum(UserStatus), default=UserStatus.ACTIVE)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
+    wallet_address = Column(String)  # For crypto payments
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships (for future features)
-    # profile = relationship("UserProfile", back_populates="user", uselist=False)
-    # investments = relationship("Investment", back_populates="investor")
-    # projects = relationship("Project", back_populates="owner")
+    # Relationships
+    projects = relationship("Project", back_populates="owner")
+    investments = relationship("Investment", back_populates="investor")
+    sessions = relationship("UserSession", back_populates="user")
 
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}', type='{self.user_type}')>" 

@@ -19,7 +19,7 @@ class UserService:
         return db.query(User).filter(User.username == username).first()
     
     @staticmethod
-    def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
+    def get_user_by_id(db: Session, user_id: str) -> Optional[User]:
         """Get user by ID"""
         return db.query(User).filter(User.id == user_id).first()
     
@@ -50,6 +50,7 @@ class UserService:
         db_user = User(
             email=user_data.email,
             username=user_data.username,
+            name=user_data.name,
             user_type=user_data.user_type,
             hashed_password=hashed_password
         )
@@ -60,7 +61,7 @@ class UserService:
         return db_user
     
     @staticmethod
-    def update_user(db: Session, user_id: int, user_data: UserUpdate) -> Optional[User]:
+    def update_user(db: Session, user_id: str, user_data: UserUpdate) -> Optional[User]:
         """Update user information"""
         db_user = UserService.get_user_by_id(db, user_id)
         if not db_user:
@@ -75,7 +76,7 @@ class UserService:
         return db_user
     
     @staticmethod
-    def delete_user(db: Session, user_id: int) -> bool:
+    def delete_user(db: Session, user_id: str) -> bool:
         """Delete user (soft delete by setting is_active to False)"""
         db_user = UserService.get_user_by_id(db, user_id)
         if not db_user:
