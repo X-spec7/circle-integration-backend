@@ -26,13 +26,13 @@ install:
 
 # Run the application
 run:
-	@echo "Starting FastAPI application on port 8888..."
-	. $(VENV) && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8888
+	@echo "Starting FastAPI application on port 8000..."
+	. $(VENV) && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 # Run in development mode with auto-reload
 dev:
-	@echo "Starting FastAPI application in development mode on port 8888..."
-	. $(VENV) && python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8888
+	@echo "Starting FastAPI application in development mode on port 8000..."
+	. $(VENV) && python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 # Run tests
 test:
