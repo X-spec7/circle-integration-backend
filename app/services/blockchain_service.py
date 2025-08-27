@@ -39,6 +39,9 @@ class BlockchainService:
         # USDC contract address on Polygon mainnet
         self.usdc_address = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
         
+        # Track deployment attempts for cleanup
+        self.deployment_attempts = []
+        
         # USDC ABI (minimal for transfers)
         self.usdc_abi = [
             {
@@ -66,13 +69,70 @@ class BlockchainService:
         
         logger.info(f"Blockchain service initialized with address: {self.account.address}")
     
+    def get_current_nonce(self) -> int:
+        """Get the current nonce for the deployer account"""
+        return self.w3.eth.get_transaction_count(self.account.address)
+    
+    async def wait_for_transaction_confirmation(self, tx_hash: str, max_wait: int = 60) -> Dict[str, Any]:
+        """Wait for transaction confirmation with timeout"""
+        try:
+            tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=max_wait)
+            return {
+                'status': tx_receipt.status,
+                'block_number': tx_receipt.blockNumber,
+                'gas_used': tx_receipt.gasUsed,
+                'contract_address': getattr(tx_receipt, 'contractAddress', None)
+            }
+        except Exception as e:
+            logger.error(f"Error waiting for transaction confirmation: {str(e)}")
+            raise
+    
+    async def deploy_with_retry(self, deployment_func, *args, max_retries: int = 3, **kwargs):
+        """Deploy contract with retry logic for nonce issues"""
+        for attempt in range(max_retries):
+            try:
+                result = await deployment_func(*args, **kwargs)
+                # Track successful deployment
+                self.deployment_attempts.append({
+                    'type': deployment_func.__name__,
+                    'success': True,
+                    'result': result,
+                    'attempt': attempt + 1
+                })
+                return result
+            except Exception as e:
+                error_msg = str(e)
+                # Track failed attempt
+                self.deployment_attempts.append({
+                    'type': deployment_func.__name__,
+                    'success': False,
+                    'error': error_msg,
+                    'attempt': attempt + 1
+                })
+                
+                if "nonce too low" in error_msg.lower() and attempt < max_retries - 1:
+                    logger.warning(f"Nonce issue detected, retrying deployment (attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(5)  # Wait 5 seconds before retry
+                    continue
+                else:
+                    logger.error(f"Deployment failed after {attempt + 1} attempts: {error_msg}")
+                    raise
+    
+    def get_deployment_history(self) -> list:
+        """Get deployment attempt history for debugging"""
+        return self.deployment_attempts.copy()
+    
+    def clear_deployment_history(self):
+        """Clear deployment attempt history"""
+        self.deployment_attempts.clear()
+    
     async def deploy_erc20_token(
         self,
         name: str,
         symbol: str,
         total_supply: int,
         price_per_token: Decimal,
-        owner_address: str
+        owner_address: Optional[str] = None
     ) -> Tuple[str, Dict[str, Any]]:
         """
         Deploy ERC20 token contract
@@ -82,12 +142,16 @@ class BlockchainService:
             symbol: Token symbol
             total_supply: Total token supply
             price_per_token: Price per token in USDC
-            owner_address: Address of the project owner
+            owner_address: Address of the project owner (defaults to deployer address)
             
         Returns:
             Tuple of (contract_address, deployment_info)
         """
         try:
+            # Use deployer address as owner if not specified
+            if owner_address is None:
+                owner_address = self.account.address
+            
             # Convert price to wei (18 decimals)
             price_wei = int(price_per_token * Decimal('1e18'))
             
@@ -113,10 +177,13 @@ class BlockchainService:
                 owner_address
             ]
             
+            # Get current nonce
+            nonce = self.get_current_nonce()
+            
             # Build transaction
             transaction = contract.constructor(*constructor_params).build_transaction({
                 'from': self.account.address,
-                'nonce': self.w3.eth.get_transaction_count(self.account.address),
+                'nonce': nonce,
                 'gas': 3000000,  # Adjust gas limit as needed
                 'gasPrice': self.w3.eth.gas_price
             })
@@ -162,15 +229,15 @@ class BlockchainService:
             project_owner_address: Address of the project owner
             target_amount: Target fundraising amount in USDC
             token_price: Price per token in USDC
-            end_date: End date as Unix timestamp
+            end_date: Project end date as Unix timestamp
             
         Returns:
             Tuple of (contract_address, deployment_info)
         """
         try:
-            # Convert amounts to wei (6 decimals for USDC)
-            target_amount_wei = int(target_amount * Decimal('1e6'))
-            token_price_wei = int(token_price * Decimal('1e6'))
+            # Convert amounts to wei (18 decimals)
+            target_amount_wei = int(target_amount * Decimal('1e18'))
+            token_price_wei = int(token_price * Decimal('1e18'))
             
             # Use compiled contract bytecode and ABI
             contract_bytecode = SIMPLEESCROW_BYTECODE
@@ -188,18 +255,22 @@ class BlockchainService:
             # Prepare constructor parameters
             constructor_params = [
                 project_token_address,
-                self.usdc_address,
+                self.usdc_address,  # USDC token address
                 project_owner_address,
                 target_amount_wei,
                 token_price_wei,
                 end_date
             ]
             
+            # Get current nonce (wait a bit to ensure previous transaction is processed)
+            await asyncio.sleep(2)  # Wait 2 seconds for previous transaction
+            nonce = self.get_current_nonce()
+            
             # Build transaction
             transaction = contract.constructor(*constructor_params).build_transaction({
                 'from': self.account.address,
-                'nonce': self.w3.eth.get_transaction_count(self.account.address),
-                'gas': 4000000,  # Adjust gas limit as needed
+                'nonce': nonce,
+                'gas': 4000000,  # Higher gas limit for escrow contract
                 'gasPrice': self.w3.eth.gas_price
             })
             
@@ -222,7 +293,7 @@ class BlockchainService:
                 logger.info(f"Escrow contract deployed successfully: {contract_address}")
                 return contract_address, deployment_info
             else:
-                raise Exception("Escrow contract deployment failed")
+                raise Exception("Contract deployment failed")
                 
         except Exception as e:
             logger.error(f"Error deploying escrow contract: {str(e)}")

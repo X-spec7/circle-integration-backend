@@ -41,27 +41,66 @@ async def create_project(
 
 @router.get("/", response_model=List[ProjectResponse])
 async def get_projects(
-    status: Optional[ProjectStatus] = None,
+    status: Optional[str] = None,
     category: Optional[str] = None,
-    risk_level: Optional[RiskLevel] = None,
+    risk_level: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
     """
     Get list of projects with optional filtering
+    
+    Query Parameters:
+    - status: Filter by project status (case-insensitive)
+      Valid values: "pending", "active", "completed", "rejected"
+    - category: Filter by project category
+    - risk_level: Filter by risk level (case-insensitive)
+      Valid values: "low", "medium", "high"
+    - skip: Number of records to skip (for pagination)
+    - limit: Maximum number of records to return (default: 100, max: 1000)
+    
+    Note: If no status filter is provided, only active projects are returned by default.
     """
+    # Validate limit
+    if limit > 1000:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Limit cannot exceed 1000"
+        )
+    
     query = db.query(Project)
     
     if status:
-        query = query.filter(Project.status == status)
+        try:
+            # Convert string to ProjectStatus enum (case-insensitive)
+            project_status = ProjectStatus(status.lower())
+            query = query.filter(Project.status == project_status)
+        except ValueError:
+            valid_statuses = [s.value for s in ProjectStatus]
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid status value: '{status}'. Valid values are: {valid_statuses}"
+            )
+    
     if category:
         query = query.filter(Project.category == category)
-    if risk_level:
-        query = query.filter(Project.risk_level == risk_level)
     
-    # Only show active projects to public
-    query = query.filter(Project.status == ProjectStatus.ACTIVE)
+    if risk_level:
+        try:
+            # Convert string to RiskLevel enum (case-insensitive)
+            risk_level_enum = RiskLevel(risk_level.capitalize())
+            query = query.filter(Project.risk_level == risk_level_enum)
+        except ValueError:
+            valid_risk_levels = [r.value for r in RiskLevel]
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid risk_level value: '{risk_level}'. Valid values are: {valid_risk_levels}"
+            )
+    
+    # Default to showing only active projects if no status filter is applied
+    if not status:
+        query = query.filter(Project.status == ProjectStatus.ACTIVE)
     
     projects = query.offset(skip).limit(limit).all()
     return projects

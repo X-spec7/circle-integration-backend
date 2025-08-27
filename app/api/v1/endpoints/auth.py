@@ -1,5 +1,5 @@
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Form
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -19,15 +19,53 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     return UserService.create_user(db=db, user_data=user_data)
 
 @router.post("/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+async def login(request: Request, db: Session = Depends(get_db)):
     """
     Login user and get access token
+    Supports both form data and JSON payload
     """
-    user = UserService.authenticate_user(db, form_data.username, form_data.password)
+    content_type = request.headers.get("content-type", "")
+    
+    if "application/json" in content_type:
+        # Handle JSON payload
+        try:
+            body = await request.json()
+            username = body.get("username") or body.get("email")
+            password = body.get("password")
+            
+            if not username or not password:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Username/email and password are required"
+                )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid JSON payload: {str(e)}"
+            )
+    else:
+        # Handle form data (OAuth2PasswordRequestForm)
+        try:
+            form_data = await request.form()
+            username = form_data.get("username")
+            password = form_data.get("password")
+            
+            if not username or not password:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Username and password are required"
+                )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid form data: {str(e)}"
+            )
+    
+    user = UserService.authenticate_user(db, username, password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Incorrect username/email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
@@ -46,5 +84,12 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "expires_in": settings.access_token_expire_minutes
-    } 
+        "expires_in": settings.access_token_expire_minutes,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "name": user.name,
+            "user_type": user.user_type.value
+        }
+    }

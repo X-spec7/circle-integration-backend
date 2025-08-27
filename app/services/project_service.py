@@ -18,6 +18,20 @@ logger = logging.getLogger(__name__)
 class ProjectService:
     """Service for project operations including blockchain deployments"""
     
+    async def cleanup_failed_deployment(self, project_id: str, db: Session):
+        """Clean up a failed project deployment"""
+        try:
+            # Find the project
+            project = db.query(Project).filter(Project.id == project_id).first()
+            if project:
+                # Delete the project record
+                db.delete(project)
+                db.commit()
+                logger.info(f"Cleaned up failed project {project_id}")
+        except Exception as e:
+            logger.error(f"Error cleaning up failed project {project_id}: {str(e)}")
+            db.rollback()
+    
     async def create_project(
         self,
         db: Session,
@@ -25,15 +39,19 @@ class ProjectService:
         project_data: ProjectCreate
     ) -> ProjectDeploymentResponse:
         """Create a new project with ERC20 token and escrow contract deployment"""
+        # Start a database transaction
+        db.begin()
+        
         try:
             # Validate user is SME
             if user.user_type != "sme":
+                db.rollback()
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Only SMEs can create projects"
                 )
             
-            # Create project record
+            # Create project record with PENDING status
             project = Project(
                 owner_id=user.id,
                 name=project_data.name,
@@ -52,38 +70,58 @@ class ProjectService:
             )
             
             db.add(project)
-            db.commit()
+            db.flush()  # Get the ID without committing
             db.refresh(project)
+            
+            # Use blockchain service's deployer address as owner
+            deployer_address = blockchain_service.account.address
             
             # Deploy ERC20 token contract
             logger.info(f"Deploying ERC20 token for project {project.id}")
-            token_address, token_deployment = await blockchain_service.deploy_erc20_token(
-                name=project_data.name,
-                symbol=project_data.symbol,
-                total_supply=project_data.total_supply,
-                price_per_token=project_data.price_per_token,
-                owner_address=user.wallet_address or self.account.address
-            )
+            try:
+                token_address, token_deployment = await blockchain_service.deploy_with_retry(
+                    blockchain_service.deploy_erc20_token,
+                    name=project_data.name,
+                    symbol=project_data.symbol,
+                    total_supply=project_data.total_supply,
+                    price_per_token=project_data.price_per_token
+                )
+            except Exception as e:
+                logger.error(f"ERC20 token deployment failed for project {project.id}: {str(e)}")
+                db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"ERC20 token deployment failed: {str(e)}"
+                )
             
             # Deploy escrow contract
             logger.info(f"Deploying escrow contract for project {project.id}")
-            escrow_address, escrow_deployment = await blockchain_service.deploy_escrow_contract(
-                project_token_address=token_address,
-                project_owner_address=user.wallet_address or self.account.address,
-                target_amount=project_data.target_amount,
-                token_price=project_data.price_per_token,
-                end_date=int(project_data.end_date.timestamp())
-            )
+            try:
+                escrow_address, escrow_deployment = await blockchain_service.deploy_with_retry(
+                    blockchain_service.deploy_escrow_contract,
+                    project_token_address=token_address,
+                    project_owner_address=deployer_address,
+                    target_amount=project_data.target_amount,
+                    token_price=project_data.price_per_token,
+                    end_date=int(project_data.end_date.timestamp())
+                )
+            except Exception as e:
+                logger.error(f"Escrow contract deployment failed for project {project.id}: {str(e)}")
+                db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Escrow contract deployment failed: {str(e)}"
+                )
             
-            # Update project with contract addresses
+            # Update project with contract addresses and set status to ACTIVE
             project.token_contract_address = token_address
             project.escrow_contract_address = escrow_address
             project.token_deployment_tx = token_deployment["transaction_hash"]
             project.escrow_deployment_tx = escrow_deployment["transaction_hash"]
             project.status = ProjectStatus.ACTIVE
             
+            # Commit the transaction only if everything succeeded
             db.commit()
-            db.refresh(project)
             
             logger.info(f"Project {project.id} created successfully with contracts deployed")
             
@@ -97,9 +135,10 @@ class ProjectService:
             )
             
         except HTTPException:
+            # Re-raise HTTP exceptions without additional rollback
             raise
         except Exception as e:
-            logger.error(f"Error creating project: {str(e)}")
+            logger.error(f"Unexpected error creating project: {str(e)}")
             db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
