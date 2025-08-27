@@ -9,6 +9,7 @@ from app.models.payment import Payment
 from app.models.project import Project
 from app.models.user import User
 from app.services.circle_client import CircleClient
+from app.services.blockchain_service import blockchain_service
 from app.schemas.payment import InvestmentCreate, PaymentInitiateRequest
 from app.core.config import settings
 from fastapi import HTTPException, status
@@ -249,17 +250,21 @@ class PaymentService:
             project.current_raised += investment.amount
             
             # Transfer EURC to escrow if fiat payment
-            if payment.payment_method == "fiat":
-                escrow_address = project.escrow_contract_address or settings.escrow_wallet_address
-                
-                transfer_response = await self.circle_client.transfer_to_escrow(
-                    amount=str(int(payment.amount * 100)),  # Convert to cents
-                    currency="EURC",
-                    escrow_address=escrow_address,
-                    project_id=project.id
-                )
-                
-                payment.circle_transfer_id = transfer_response["data"]["id"]
+            if payment.payment_method == "fiat" and project.escrow_contract_address:
+                try:
+                    # Transfer EURC to project escrow contract
+                    transfer_info = await blockchain_service.transfer_eurc_to_escrow(
+                        escrow_address=project.escrow_contract_address,
+                        amount=payment.amount
+                    )
+                    
+                    payment.blockchain_tx_hash = transfer_info["transaction_hash"]
+                    logger.info(f"EURC transferred to escrow: {transfer_info['transaction_hash']}")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to transfer EURC to escrow: {str(e)}")
+                    # Don't fail the payment, just log the error
+                    # The transfer can be retried later
             
             db.commit()
             
@@ -267,7 +272,7 @@ class PaymentService:
                 "status": "success",
                 "payment_id": payment.id,
                 "investment_id": investment.id,
-                "transfer_id": payment.circle_transfer_id
+                "blockchain_tx": payment.blockchain_tx_hash
             }
             
         except Exception as e:

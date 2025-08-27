@@ -34,6 +34,7 @@ class Payment(Base):
     # Blockchain details
     transaction_hash = Column(String)  # Blockchain transaction hash
     escrow_transaction_hash = Column(String)  # Transfer to escrow transaction
+    blockchain_tx_hash = Column(String)  # EURC transfer transaction hash
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

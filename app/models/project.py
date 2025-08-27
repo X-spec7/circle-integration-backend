@@ -44,6 +44,8 @@ class Project(Base):
     # Blockchain details
     token_contract_address = Column(String)  # Polygon token contract
     escrow_contract_address = Column(String)  # Escrow smart contract
+    token_deployment_tx = Column(String)  # Token deployment transaction hash
+    escrow_deployment_tx = Column(String)  # Escrow deployment transaction hash
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

@@ -8,51 +8,36 @@ from app.core.database import get_db
 from app.api.deps import get_current_user
 from app.models.user import User, UserType
 from app.models.project import Project, ProjectStatus, RiskLevel
-from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse, ProjectList
+from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse, ProjectList, ProjectDeploymentResponse
 from app.services.user_service import UserService
+from app.services.project_service import project_service
 from app.core.config import settings
 
 router = APIRouter()
 
-@router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ProjectDeploymentResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
     project_data: ProjectCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Create a new project (SME users only)
+    Create a new project with ERC20 token and escrow contract deployment (SME users only)
     """
-    if current_user.user_type != UserType.SME:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only SME users can create projects"
+    try:
+        deployment_response = await project_service.create_project(
+            db=db,
+            user=current_user,
+            project_data=project_data
         )
-    
-    # Create project
-    project = Project(
-        id=str(uuid.uuid4()),
-        owner_id=current_user.id,
-        name=project_data.name,
-        symbol=project_data.symbol,
-        description=project_data.description,
-        category=project_data.category,
-        target_amount=project_data.target_amount,
-        price_per_token=project_data.price_per_token,
-        total_supply=project_data.total_supply,
-        end_date=project_data.end_date,
-        risk_level=project_data.risk_level,
-        status=ProjectStatus.PENDING,
-        image_url=project_data.image_url,
-        business_plan_url=project_data.business_plan_url,
-        whitepaper_url=project_data.whitepaper_url
-    )
-    
-    db.add(project)
-    db.commit()
-    db.refresh(project)
-    
-    return project
+        return deployment_response
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create project: {str(e)}"
+        )
 
 @router.get("/", response_model=List[ProjectResponse])
 async def get_projects(
@@ -89,7 +74,7 @@ async def get_project(
     """
     Get specific project details
     """
-    project = db.query(Project).filter(Project.id == project_id).first()
+    project = await project_service.get_project(db, project_id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -115,28 +100,13 @@ async def update_project(
     """
     Update project (owner only)
     """
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found"
-        )
-    
-    if project.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to update this project"
-        )
-    
-    # Update project fields
     update_data = project_data.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(project, field, value)
-    
-    project.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(project)
-    
+    project = await project_service.update_project(
+        db=db,
+        project_id=project_id,
+        user=current_user,
+        update_data=update_data
+    )
     return project
 
 @router.delete("/{project_id}")
@@ -148,7 +118,7 @@ async def delete_project(
     """
     Delete project (owner only)
     """
-    project = db.query(Project).filter(Project.id == project_id).first()
+    project = await project_service.get_project(db, project_id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -177,6 +147,23 @@ async def get_user_projects(
     projects = db.query(Project).filter(Project.owner_id == current_user.id).all()
     return projects
 
+@router.get("/{project_id}/escrow-address")
+async def get_project_escrow_address(
+    project_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get escrow address for a project
+    """
+    escrow_address = await project_service.get_escrow_address(db, project_id)
+    if not escrow_address:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project or escrow address not found"
+        )
+    
+    return {"escrow_address": escrow_address}
+
 # Admin endpoints for project approval
 @router.post("/{project_id}/approve")
 async def approve_project(
@@ -193,7 +180,7 @@ async def approve_project(
             detail="Only admin users can approve projects"
         )
     
-    project = db.query(Project).filter(Project.id == project_id).first()
+    project = await project_service.get_project(db, project_id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -222,7 +209,7 @@ async def reject_project(
             detail="Only admin users can reject projects"
         )
     
-    project = db.query(Project).filter(Project.id == project_id).first()
+    project = await project_service.get_project(db, project_id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

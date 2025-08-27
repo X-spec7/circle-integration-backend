@@ -48,6 +48,8 @@ class ProjectResponse(ProjectBase):
     whitepaper_url: Optional[str] = None
     token_contract_address: Optional[str] = None
     escrow_contract_address: Optional[str] = None
+    token_deployment_tx: Optional[str] = None
+    escrow_deployment_tx: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -67,4 +69,13 @@ class ProjectStats(BaseModel):
     total_projects: int
     active_projects: int
     total_raised: Decimal
-    total_investors: int 
+    total_investors: int
+
+class ProjectDeploymentResponse(BaseModel):
+    """Schema for project deployment response"""
+    project_id: str
+    token_contract_address: str
+    escrow_contract_address: str
+    token_deployment_tx: str
+    escrow_deployment_tx: str
+    deployment_status: str 

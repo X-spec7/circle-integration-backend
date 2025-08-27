@@ -49,6 +49,14 @@ class Settings(BaseSettings):
         default=os.getenv("NETWORK", "POLYGON"),
         description="Blockchain network"
     )
+    polygon_rpc_url: str = Field(
+        default=os.getenv("POLYGON_RPC_URL", "https://polygon-rpc.com"),
+        description="Polygon RPC URL"
+    )
+    polygon_private_key: str = Field(
+        default=os.getenv("POLYGON_PRIVATE_KEY", ""),
+        description="Private key for deploying contracts"
+    )
     escrow_wallet_address: str = Field(
         default=os.getenv("ESCROW_WALLET_ADDRESS", ""),
         description="Default escrow wallet address"
