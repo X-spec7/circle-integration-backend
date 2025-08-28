@@ -12,6 +12,9 @@ from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse, P
 from app.services.user_service import UserService
 from app.services.project_service import project_service
 from app.core.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -113,21 +116,34 @@ async def get_project(
     """
     Get specific project details
     """
-    project = await project_service.get_project(db, project_id)
-    if not project:
+    try:
+        project = await project_service.get_project(db, project_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+        
+        # Only show active projects to public
+        if project.status != ProjectStatus.ACTIVE:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+        
+        # Debug logging
+        logger.info(f"Retrieved project {project_id}: {project.name}, status: {project.status}")
+        
+        return project
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving project {project_id}: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving project: {str(e)}"
         )
-    
-    # Only show active projects to public
-    if project.status != ProjectStatus.ACTIVE:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found"
-        )
-    
-    return project
 
 @router.put("/{project_id}", response_model=ProjectResponse)
 async def update_project(
