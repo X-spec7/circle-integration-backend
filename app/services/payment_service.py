@@ -288,20 +288,47 @@ class PaymentService:
             # Update project raised amount
             project.current_raised += investment.amount
             
-            # Transfer EURC to escrow if fiat payment
-            if payment.payment_method == "fiat" and project.escrow_contract_address:
+            # Process on-ramp and escrow transfer for card payments
+            if payment.payment_method in ["card", "fiat"] and project.escrow_contract_address:
                 try:
-                    # Transfer EURC to project escrow contract
-                    transfer_info = await blockchain_service.transfer_eurc_to_escrow(
-                        escrow_address=project.escrow_contract_address,
-                        amount=payment.amount
+                    # Step 1: EUR is automatically converted to EURC in Circle Mint
+                    # Step 2: Convert EURC to USDC (since EURC is not available on Polygon)
+                    conversion_result = await self.circle_client.convert_currency(
+                        source_amount=str(int(payment.amount * 100)),  # Convert to cents
+                        source_currency="EURC",
+                        destination_currency="USDC"
                     )
                     
-                    payment.blockchain_tx_hash = transfer_info["transaction_hash"]
-                    logger.info(f"EURC transferred to escrow: {transfer_info['transaction_hash']}")
+                    logger.info(f"Currency conversion successful: {conversion_result}")
+                    
+                    # Step 3: Add escrow address to Circle Address Book (if not already added)
+                    recipient_result = await self.circle_client.add_address_book_recipient(
+                        address=project.escrow_contract_address,
+                        chain="MATIC",  # Polygon
+                        description=f"Escrow for {project.name}"
+                    )
+                    
+                    recipient_id = recipient_result["data"]["id"]
+                    logger.info(f"Address book recipient created: {recipient_id}")
+                    
+                    # Step 4: Create crypto payout to escrow
+                    # Note: You'll need to get your Circle Mint wallet ID from settings or API
+                    source_wallet_id = settings.circle_mint_wallet_id  # Add this to config
+                    
+                    payout_result = await self.circle_client.create_crypto_payout(
+                        amount=str(int(payment.amount * 100)),  # USDC amount in cents
+                        currency="USDC",
+                        recipient_id=recipient_id,
+                        source_wallet_id=source_wallet_id
+                    )
+                    
+                    payout_id = payout_result["data"]["id"]
+                    payment.circle_transfer_id = payout_id
+                    
+                    logger.info(f"USDC payout to escrow initiated: {payout_id}")
                     
                 except Exception as e:
-                    logger.error(f"Failed to transfer EURC to escrow: {str(e)}")
+                    logger.error(f"Failed to process on-ramp and escrow transfer: {str(e)}")
                     # Don't fail the payment, just log the error
                     # The transfer can be retried later
             
@@ -311,7 +338,7 @@ class PaymentService:
                 "status": "success",
                 "payment_id": payment.id,
                 "investment_id": investment.id,
-                "blockchain_tx": payment.blockchain_tx_hash
+                "circle_payout_id": payment.circle_transfer_id
             }
             
         except Exception as e:

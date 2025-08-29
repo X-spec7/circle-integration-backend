@@ -45,6 +45,10 @@ class Settings(BaseSettings):
         default=os.getenv("CIRCLE_WEBHOOK_SECRET", ""),
         description="Circle webhook secret (deprecated - now using ECDSA signatures)"
     )
+    circle_mint_wallet_id: str = Field(
+        default=os.getenv("CIRCLE_MINT_WALLET_ID", ""),
+        description="Circle Mint wallet ID for crypto payouts"
+    )
     
     # Blockchain settings
     network: str = Field(

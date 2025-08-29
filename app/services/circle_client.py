@@ -107,9 +107,130 @@ class CircleClient:
         except Exception as e:
             logger.error(f"Unexpected error getting payment status: {str(e)}")
             raise
+
+    # New methods for proper Circle Mint flow
+    
+    async def get_business_account_banks(self) -> Dict[str, Any]:
+        """Get business account bank details for SEPA deposits"""
+        try:
+            response = await self.client.get("/businessAccount/banks/wire")
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Circle API error getting business account banks: {e.response.text}")
+            raise Exception(f"Failed to get business account banks: {e.response.text}")
+        except Exception as e:
+            logger.error(f"Unexpected error getting business account banks: {str(e)}")
+            raise
+
+    async def convert_currency(self, source_amount: str, source_currency: str, destination_currency: str) -> Dict[str, Any]:
+        """Convert currency in Circle Mint (e.g., EURC to USDC)"""
+        try:
+            payload = {
+                "source": {"amount": source_amount, "currency": source_currency},
+                "destination": {"currency": destination_currency}
+            }
+            
+            response = await self.client.post("/conversions", json=payload)
+            response.raise_for_status()
+            return response.json()
+            
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Circle API error converting currency: {e.response.text}")
+            raise Exception(f"Failed to convert currency: {e.response.text}")
+        except Exception as e:
+            logger.error(f"Unexpected error converting currency: {str(e)}")
+            raise
+
+    async def add_address_book_recipient(self, address: str, chain: str = "MATIC", description: str = None) -> Dict[str, Any]:
+        """Add escrow address to Circle Address Book"""
+        try:
+            payload = {
+                "idempotencyKey": str(uuid.uuid4()),
+                "chain": chain,
+                "address": address,
+                "description": description or "Project Escrow Contract"
+            }
+            
+            response = await self.client.post("/addressBook/recipients", json=payload)
+            response.raise_for_status()
+            return response.json()
+            
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Circle API error adding address book recipient: {e.response.text}")
+            raise Exception(f"Failed to add address book recipient: {e.response.text}")
+        except Exception as e:
+            logger.error(f"Unexpected error adding address book recipient: {str(e)}")
+            raise
+
+    async def get_address_book_recipient(self, recipient_id: str) -> Dict[str, Any]:
+        """Get address book recipient status"""
+        try:
+            response = await self.client.get(f"/addressBook/recipients/{recipient_id}")
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Circle API error getting address book recipient: {e.response.text}")
+            raise Exception(f"Failed to get address book recipient: {e.response.text}")
+        except Exception as e:
+            logger.error(f"Unexpected error getting address book recipient: {str(e)}")
+            raise
+
+    async def create_crypto_payout(self, amount: str, currency: str, recipient_id: str, source_wallet_id: str) -> Dict[str, Any]:
+        """Create crypto payout to escrow contract"""
+        try:
+            payload = {
+                "idempotencyKey": str(uuid.uuid4()),
+                "source": {"type": "wallet", "id": source_wallet_id},
+                "destination": {
+                    "type": "address_book_recipient",
+                    "id": recipient_id
+                },
+                "amount": {"amount": amount, "currency": currency}
+            }
+            
+            response = await self.client.post("/payouts", json=payload)
+            response.raise_for_status()
+            return response.json()
+            
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Circle API error creating crypto payout: {e.response.text}")
+            raise Exception(f"Failed to create crypto payout: {e.response.text}")
+        except Exception as e:
+            logger.error(f"Unexpected error creating crypto payout: {str(e)}")
+            raise
+
+    async def get_payout_status(self, payout_id: str) -> Dict[str, Any]:
+        """Get payout status"""
+        try:
+            response = await self.client.get(f"/payouts/{payout_id}")
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Circle API error getting payout status: {e.response.text}")
+            raise Exception(f"Failed to get payout status: {e.response.text}")
+        except Exception as e:
+            logger.error(f"Unexpected error getting payout status: {str(e)}")
+            raise
+
+    async def get_business_account_balance(self) -> Dict[str, Any]:
+        """Get business account balance (Circle Mint)"""
+        try:
+            response = await self.client.get("/businessAccount/balances")
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Circle API error getting business account balance: {e.response.text}")
+            raise Exception(f"Failed to get business account balance: {e.response.text}")
+        except Exception as e:
+            logger.error(f"Unexpected error getting business account balance: {str(e)}")
+            raise
+
+    # Legacy methods (keeping for backward compatibility)
     
     async def transfer_to_escrow(self, amount: str, currency: str, escrow_address: str, project_id: str) -> Dict[str, Any]:
-        """Transfer EURC to on-chain escrow smart contract"""
+        """Transfer EURC to on-chain escrow smart contract (DEPRECATED - use crypto payout instead)"""
+        logger.warning("transfer_to_escrow is deprecated. Use create_crypto_payout instead.")
         try:
             idempotency_key = str(uuid.uuid4())
             
