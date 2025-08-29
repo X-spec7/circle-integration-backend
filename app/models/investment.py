@@ -9,6 +9,7 @@ class PaymentMethod(str, enum.Enum):
     """Payment method enumeration"""
     CRYPTO = "crypto"
     FIAT = "fiat"
+    CARD = "card"
 
 class PaymentStatus(str, enum.Enum):
     """Payment status enumeration"""

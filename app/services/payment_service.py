@@ -6,7 +6,7 @@ from datetime import datetime
 
 from app.models.investment import Investment, PaymentMethod, PaymentStatus
 from app.models.payment import Payment
-from app.models.project import Project
+from app.models.project import Project, ProjectStatus
 from app.models.user import User
 from app.services.circle_client import CircleClient
 from app.services.blockchain_service import blockchain_service
@@ -71,10 +71,15 @@ class PaymentService:
                 detail="Failed to create investment"
             )
     
-    async def initiate_payment(self, db: Session, user: User, payment_data: PaymentInitiateRequest) -> Dict[str, Any]:
-        """Initiate payment process"""
+    async def initiate_payment(
+        self,
+        db: Session,
+        user: User,
+        payment_data: PaymentInitiateRequest
+    ) -> Dict[str, Any]:
+        """Initiate payment for investment"""
         try:
-            # Get the project
+            # Validate project exists and is active
             project = db.query(Project).filter(Project.id == payment_data.project_id).first()
             if not project:
                 raise HTTPException(
@@ -82,37 +87,48 @@ class PaymentService:
                     detail="Project not found"
                 )
             
+            if project.status != ProjectStatus.ACTIVE:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Project is not active for investments"
+                )
+            
             # Create investment record
-            investment_data = InvestmentCreate(
-                project_id=payment_data.project_id,
+            investment = Investment(
+                id=str(uuid.uuid4()),
+                user_id=user.id,
+                project_id=project.id,
                 amount=payment_data.amount,
-                payment_method=payment_data.payment_method,
-                currency="EUR"
+                payment_status=PaymentStatus.PENDING
             )
             
-            investment = await self.create_investment(db, user, investment_data)
+            db.add(investment)
+            db.commit()
+            db.refresh(investment)
             
-            if payment_data.payment_method == PaymentMethod.FIAT:
+            # Initiate payment based on method
+            if payment_data.payment_method == "fiat":
                 return await self._initiate_fiat_payment(db, investment, project)
-            elif payment_data.payment_method == PaymentMethod.CRYPTO:
-                return await self._initiate_crypto_payment(db, investment, project)
+            elif payment_data.payment_method == "card":
+                return await self._initiate_card_payment(db, investment, project)
             else:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid payment method"
+                    detail="Invalid payment method. Supported: 'fiat' (SEPA) or 'card' (credit/debit)"
                 )
                 
         except HTTPException:
             raise
         except Exception as e:
             logger.error(f"Error initiating payment: {str(e)}")
+            db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to initiate payment"
             )
     
     async def _initiate_fiat_payment(self, db: Session, investment: Investment, project: Project) -> Dict[str, Any]:
-        """Initiate fiat payment through Circle"""
+        """Initiate fiat payment through Circle (SEPA Bank Transfer)"""
         try:
             # Create payment record
             payment = Payment(
@@ -128,12 +144,13 @@ class PaymentService:
             db.commit()
             db.refresh(payment)
             
-            # Create Circle payment intent
+            # Create Circle payment intent for SEPA
             description = f"Investment in {project.name} - {investment.amount} EUR"
             circle_response = await self.circle_client.create_payment_intent(
                 amount=str(int(investment.amount * 100)),  # Convert to cents
                 currency="EUR",
-                description=description
+                description=description,
+                payment_method="sepaBankAccount"
             )
             
             # Update payment with Circle payment ID
@@ -156,6 +173,7 @@ class PaymentService:
             return {
                 "payment_id": payment.id,
                 "status": "pending",
+                "payment_method": "sepa_bank_transfer",
                 "bank_details": bank_details,
                 "message": "Please transfer the amount to the provided bank account. Your investment will be processed once payment is confirmed."
             }
@@ -168,16 +186,16 @@ class PaymentService:
                 detail="Failed to initiate fiat payment"
             )
     
-    async def _initiate_crypto_payment(self, db: Session, investment: Investment, project: Project) -> Dict[str, Any]:
-        """Initiate crypto payment"""
+    async def _initiate_card_payment(self, db: Session, investment: Investment, project: Project) -> Dict[str, Any]:
+        """Initiate card payment through Circle"""
         try:
             # Create payment record
             payment = Payment(
                 id=str(uuid.uuid4()),
                 investment_id=investment.id,
                 amount=investment.amount,
-                currency="USDC",
-                payment_method="crypto",
+                currency="EUR",
+                payment_method="card",
                 status=PaymentStatus.PENDING
             )
             
@@ -185,24 +203,45 @@ class PaymentService:
             db.commit()
             db.refresh(payment)
             
-            # Get project escrow address
-            escrow_address = project.escrow_contract_address or settings.escrow_wallet_address
+            # Create Circle payment intent for card
+            description = f"Investment in {project.name} - {investment.amount} EUR"
+            circle_response = await self.circle_client.create_payment_intent(
+                amount=str(int(investment.amount * 100)),  # Convert to cents
+                currency="EUR",
+                description=description,
+                payment_method="card"
+            )
+            
+            # Update payment with Circle payment ID
+            payment.circle_payment_id = circle_response["data"]["id"]
+            db.commit()
+            
+            # Extract card payment details from Circle response
+            card_details = None
+            if "data" in circle_response and "paymentMethods" in circle_response["data"]:
+                for method in circle_response["data"]["paymentMethods"]:
+                    if method.get("type") == "card":
+                        card_details = {
+                            "payment_url": method.get("paymentUrl"),
+                            "expires_at": method.get("expiresAt"),
+                            "card_types": method.get("cardTypes", [])
+                        }
+                        break
             
             return {
                 "payment_id": payment.id,
                 "status": "pending",
-                "escrow_address": escrow_address,
-                "amount": str(investment.amount),
-                "currency": "USDC",
-                "message": "Please send USDC to the provided escrow address. Include the payment ID in the transaction memo."
+                "payment_method": "credit_debit_card",
+                "card_details": card_details,
+                "message": "Please complete your payment using the provided payment link."
             }
             
         except Exception as e:
-            logger.error(f"Error initiating crypto payment: {str(e)}")
+            logger.error(f"Error initiating card payment: {str(e)}")
             db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to initiate crypto payment"
+                detail="Failed to initiate card payment"
             )
     
     async def process_circle_webhook(self, db: Session, webhook_data: Dict[str, Any]) -> Dict[str, Any]:

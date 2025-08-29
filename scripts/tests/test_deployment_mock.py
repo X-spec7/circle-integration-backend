@@ -56,7 +56,7 @@ class MockDeployment:
             contract_address = self.generate_mock_address("token")
             tx_hash = self.generate_mock_tx_hash()
             
-            logger.info(f"✅ Mock ERC20 token deployed successfully!")
+            logger.info(f" Mock ERC20 token deployed successfully!")
             logger.info(f"Contract Address: {contract_address}")
             logger.info(f"Transaction Hash: {tx_hash}")
             logger.info(f"Gas Used: 2,847,123")
@@ -64,13 +64,13 @@ class MockDeployment:
             return contract_address, tx_hash
             
         except Exception as e:
-            logger.error(f"❌ Error in mock ERC20 deployment: {str(e)}")
+            logger.error(f" Error in mock ERC20 deployment: {str(e)}")
             raise
     
     async def mock_deploy_escrow_contract(self, project_token_address: str, project_owner_address: str, target_amount: Decimal, token_price: Decimal, end_date: int):
         """Mock escrow contract deployment"""
         try:
-            logger.info(f"🔧 Mock deploying escrow contract for token: {project_token_address}")
+            logger.info(f" Mock deploying escrow contract for token: {project_token_address}")
             
             # Simulate deployment delay
             await asyncio.sleep(1)
@@ -79,7 +79,7 @@ class MockDeployment:
             contract_address = self.generate_mock_address("escrow")
             tx_hash = self.generate_mock_tx_hash()
             
-            logger.info(f"✅ Mock escrow contract deployed successfully!")
+            logger.info(f" Mock escrow contract deployed successfully!")
             logger.info(f"Contract Address: {contract_address}")
             logger.info(f"Transaction Hash: {tx_hash}")
             logger.info(f"Gas Used: 3,124,567")
@@ -87,14 +87,14 @@ class MockDeployment:
             return contract_address, tx_hash
             
         except Exception as e:
-            logger.error(f"❌ Error in mock escrow deployment: {str(e)}")
+            logger.error(f" Error in mock escrow deployment: {str(e)}")
             raise
     
     async def test_mock_deployment(self):
         """Test mock deployment of both contracts"""
         try:
-            logger.info("🚀 Starting MOCK deployment simulation...")
-            logger.info("⚠️  This is a simulation - no real contracts will be deployed!")
+            logger.info(" Starting MOCK deployment simulation...")
+            logger.info("  This is a simulation - no real contracts will be deployed!")
             
             # Test parameters
             token_name = "Test Project Token"
@@ -126,12 +126,12 @@ class MockDeployment:
             
             # Print summary
             logger.info("\n" + "="*60)
-            logger.info("🎉 MOCK DEPLOYMENT SUMMARY")
+            logger.info(" MOCK DEPLOYMENT SUMMARY")
             logger.info("="*60)
             logger.info(f"Network: Polygon Mumbai Testnet (SIMULATION)")
             logger.info(f"Deployer: {self.account_address}")
             logger.info(f"")
-            logger.info(f"📄 ERC20 Token Contract:")
+            logger.info(f" ERC20 Token Contract:")
             logger.info(f"   Address: {token_address}")
             logger.info(f"   Name: {token_name}")
             logger.info(f"   Symbol: {token_symbol}")
@@ -140,7 +140,7 @@ class MockDeployment:
             logger.info(f"   Owner: {project_owner}")
             logger.info(f"   Transaction: {token_tx}")
             logger.info(f"")
-            logger.info(f"🏦 Escrow Contract:")
+            logger.info(f" Escrow Contract:")
             logger.info(f"   Address: {escrow_address}")
             logger.info(f"   Project Token: {token_address}")
             logger.info(f"   USDC Token: {self.usdc_address}")
@@ -149,14 +149,14 @@ class MockDeployment:
             logger.info(f"   End Date: {datetime.fromtimestamp(end_date)}")
             logger.info(f"   Transaction: {escrow_tx}")
             logger.info(f"")
-            logger.info(f"🔗 Mock Mumbai Polygonscan Links:")
+            logger.info(f" Mock Mumbai Polygonscan Links:")
             logger.info(f"   Token: https://mumbai.polygonscan.com/address/{token_address}")
             logger.info(f"   Escrow: https://mumbai.polygonscan.com/address/{escrow_address}")
             logger.info(f"   Token TX: https://mumbai.polygonscan.com/tx/{token_tx}")
             logger.info(f"   Escrow TX: https://mumbai.polygonscan.com/tx/{escrow_tx}")
             logger.info("="*60)
             logger.info("")
-            logger.info("💡 To deploy real contracts:")
+            logger.info(" To deploy real contracts:")
             logger.info("1. Get test MATIC from: https://faucet.polygon.technology/")
             logger.info("2. Run: python test_deployment.py")
             logger.info("3. Use the real contract addresses for testing")
@@ -169,7 +169,7 @@ class MockDeployment:
             }
             
         except Exception as e:
-            logger.error(f"❌ Mock deployment failed: {str(e)}")
+            logger.error(f" Mock deployment failed: {str(e)}")
             raise
 
 async def main():
@@ -179,10 +179,10 @@ async def main():
         result = await deployer.test_mock_deployment()
         
         # Return the addresses for the user
-        print(f"\n📋 MOCK CONTRACT ADDRESSES FOR TESTING:")
+        print(f"\n MOCK CONTRACT ADDRESSES FOR TESTING:")
         print(f"Token Contract: {result['token_address']}")
         print(f"Escrow Contract: {result['escrow_address']}")
-        print(f"\n⚠️  These are MOCK addresses for demonstration purposes!")
+        print(f"\n These are MOCK addresses for demonstration purposes!")
         print(f"   Real deployment requires test MATIC for gas fees.")
         
     except Exception as e:

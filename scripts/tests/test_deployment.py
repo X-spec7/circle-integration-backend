@@ -80,7 +80,7 @@ class TestDeployment:
             
             if tx_receipt.status == 1:
                 contract_address = tx_receipt.contractAddress
-                logger.info(f"✅ ERC20 token deployed successfully!")
+                logger.info(f" ERC20 token deployed successfully!")
                 logger.info(f"Contract Address: {contract_address}")
                 logger.info(f"Transaction Hash: {tx_hash.hex()}")
                 logger.info(f"Gas Used: {tx_receipt.gasUsed}")
@@ -89,7 +89,7 @@ class TestDeployment:
                 raise Exception("Token deployment failed")
                 
         except Exception as e:
-            logger.error(f"❌ Error deploying ERC20 token: {str(e)}")
+            logger.error(f" Error deploying ERC20 token: {str(e)}")
             raise
     
     async def deploy_escrow_contract(self, project_token_address: str, project_owner_address: str, target_amount: Decimal, token_price: Decimal, end_date: int):
@@ -136,7 +136,7 @@ class TestDeployment:
             
             if tx_receipt.status == 1:
                 contract_address = tx_receipt.contractAddress
-                logger.info(f"✅ Escrow contract deployed successfully!")
+                logger.info(f" Escrow contract deployed successfully!")
                 logger.info(f"Contract Address: {contract_address}")
                 logger.info(f"Transaction Hash: {tx_hash.hex()}")
                 logger.info(f"Gas Used: {tx_receipt.gasUsed}")
@@ -145,13 +145,13 @@ class TestDeployment:
                 raise Exception("Escrow deployment failed")
                 
         except Exception as e:
-            logger.error(f"❌ Error deploying escrow contract: {str(e)}")
+            logger.error(f" Error deploying escrow contract: {str(e)}")
             raise
     
     async def test_deployment(self):
         """Test deployment of both contracts"""
         try:
-            logger.info("🚀 Starting test deployment on Polygon Mumbai testnet...")
+            logger.info(" Starting test deployment on Polygon Mumbai testnet...")
             
             # Test parameters
             token_name = "Test Project Token"
@@ -183,12 +183,12 @@ class TestDeployment:
             
             # Print summary
             logger.info("\n" + "="*60)
-            logger.info("🎉 DEPLOYMENT SUMMARY")
+            logger.info(" DEPLOYMENT SUMMARY")
             logger.info("="*60)
             logger.info(f"Network: Polygon Mumbai Testnet")
             logger.info(f"Deployer: {self.account.address}")
             logger.info(f"")
-            logger.info(f"📄 ERC20 Token Contract:")
+            logger.info(f" ERC20 Token Contract:")
             logger.info(f"   Address: {token_address}")
             logger.info(f"   Name: {token_name}")
             logger.info(f"   Symbol: {token_symbol}")
@@ -197,7 +197,7 @@ class TestDeployment:
             logger.info(f"   Owner: {project_owner}")
             logger.info(f"   Transaction: {token_tx}")
             logger.info(f"")
-            logger.info(f"🏦 Escrow Contract:")
+            logger.info(f" Escrow Contract:")
             logger.info(f"   Address: {escrow_address}")
             logger.info(f"   Project Token: {token_address}")
             logger.info(f"   USDC Token: {self.usdc_address}")
@@ -206,7 +206,7 @@ class TestDeployment:
             logger.info(f"   End Date: {datetime.fromtimestamp(end_date)}")
             logger.info(f"   Transaction: {escrow_tx}")
             logger.info(f"")
-            logger.info(f"🔗 Mumbai Polygonscan Links:")
+            logger.info(f" Mumbai Polygonscan Links:")
             logger.info(f"   Token: https://mumbai.polygonscan.com/address/{token_address}")
             logger.info(f"   Escrow: https://mumbai.polygonscan.com/address/{escrow_address}")
             logger.info(f"   Token TX: https://mumbai.polygonscan.com/tx/{token_tx}")
@@ -221,7 +221,7 @@ class TestDeployment:
             }
             
         except Exception as e:
-            logger.error(f"❌ Test deployment failed: {str(e)}")
+            logger.error(f" Test deployment failed: {str(e)}")
             raise
 
 async def main():
@@ -231,7 +231,7 @@ async def main():
         result = await deployer.test_deployment()
         
         # Return the addresses for the user
-        print(f"\n📋 CONTRACT ADDRESSES FOR TESTING:")
+        print(f"\n CONTRACT ADDRESSES FOR TESTING:")
         print(f"Token Contract: {result['token_address']}")
         print(f"Escrow Contract: {result['escrow_address']}")
         

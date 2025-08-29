@@ -23,13 +23,18 @@ class CircleClient:
             timeout=30.0
         )
     
-    async def create_payment_intent(self, amount: str, currency: str = "EUR", description: str = None) -> Dict[str, Any]:
-        """Create a payment intent for fiat bank transfer (EUR)"""
+    async def create_payment_intent(self, amount: str, currency: str = "EUR", description: str = None, payment_method: str = "sepaBankAccount") -> Dict[str, Any]:
+        """Create a payment intent for fiat payment (SEPA or Card)"""
         try:
+            # Validate payment method
+            valid_methods = ["sepaBankAccount", "card"]
+            if payment_method not in valid_methods:
+                raise ValueError(f"Invalid payment method. Must be one of: {valid_methods}")
+            
             payload = {
                 "amount": {"amount": amount, "currency": currency},
                 "settlementCurrency": "EUR",
-                "paymentMethods": [{"type": "sepaBankAccount"}],
+                "paymentMethods": [{"type": payment_method}],
                 "description": description or "Token Investment Payment"
             }
             
@@ -42,6 +47,51 @@ class CircleClient:
             raise Exception(f"Failed to create payment intent: {e.response.text}")
         except Exception as e:
             logger.error(f"Unexpected error creating payment intent: {str(e)}")
+            raise
+    
+    async def create_card_payment_intent(self, amount: str, currency: str = "EUR", description: str = None) -> Dict[str, Any]:
+        """Create a payment intent for credit/debit card payment"""
+        try:
+            payload = {
+                "amount": {"amount": amount, "currency": currency},
+                "settlementCurrency": "EUR",
+                "paymentMethods": [{"type": "card"}],
+                "description": description or "Token Investment Payment"
+            }
+            
+            response = await self.client.post("/payments", json=payload)
+            response.raise_for_status()
+            return response.json()
+            
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Circle API error creating card payment intent: {e.response.text}")
+            raise Exception(f"Failed to create card payment intent: {e.response.text}")
+        except Exception as e:
+            logger.error(f"Unexpected error creating card payment intent: {str(e)}")
+            raise
+    
+    async def create_multi_payment_intent(self, amount: str, currency: str = "EUR", description: str = None) -> Dict[str, Any]:
+        """Create a payment intent with multiple payment methods (SEPA + Card)"""
+        try:
+            payload = {
+                "amount": {"amount": amount, "currency": currency},
+                "settlementCurrency": "EUR",
+                "paymentMethods": [
+                    {"type": "sepaBankAccount"},
+                    {"type": "card"}
+                ],
+                "description": description or "Token Investment Payment"
+            }
+            
+            response = await self.client.post("/payments", json=payload)
+            response.raise_for_status()
+            return response.json()
+            
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Circle API error creating multi-payment intent: {e.response.text}")
+            raise Exception(f"Failed to create multi-payment intent: {e.response.text}")
+        except Exception as e:
+            logger.error(f"Unexpected error creating multi-payment intent: {str(e)}")
             raise
     
     async def get_payment_status(self, payment_id: str) -> Dict[str, Any]:

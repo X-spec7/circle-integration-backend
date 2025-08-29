@@ -43,6 +43,10 @@ async def initiate_payment(
 ):
     """
     Initiate payment process for investment
+    
+    Payment Methods:
+    - "fiat": SEPA Bank Transfer (lower fees, 1-3 days)
+    - "card": Credit/Debit Card (instant, higher fees)
     """
     payment_service = PaymentService()
     try:

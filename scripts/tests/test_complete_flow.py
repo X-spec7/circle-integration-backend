@@ -47,7 +47,7 @@ class CompleteFlowTest:
     async def test_project_creation_flow(self):
         """Test the complete project creation flow"""
         logger.info("\n" + "="*60)
-        logger.info("🚀 TESTING COMPLETE PROJECT CREATION FLOW")
+        logger.info(" TESTING COMPLETE PROJECT CREATION FLOW")
         logger.info("="*60)
         
         # Step 1: Project data from frontend
@@ -63,7 +63,7 @@ class CompleteFlowTest:
             'risk_level': 'Medium'
         }
         
-        logger.info("📋 Step 1: Project Data Received from Frontend")
+        logger.info(" Step 1: Project Data Received from Frontend")
         logger.info(f"   Project Name: {project_data['name']}")
         logger.info(f"   Symbol: {project_data['symbol']}")
         logger.info(f"   Target Amount: ${project_data['target_amount']}")
@@ -71,21 +71,21 @@ class CompleteFlowTest:
         logger.info(f"   Total Supply: {project_data['total_supply'] / 10**18:,} tokens")
         
         # Step 2: Deploy ERC20 Token Contract
-        logger.info("\n🔧 Step 2: Deploying ERC20 Token Contract")
+        logger.info("\n Step 2: Deploying ERC20 Token Contract")
         token_tx = self.generate_mock_tx_hash()
         logger.info(f"   Token Contract Address: {self.token_address}")
         logger.info(f"   Deployment Transaction: {token_tx}")
         logger.info(f"   Gas Used: ~2,847,123 wei")
         
         # Step 3: Deploy Escrow Contract
-        logger.info("\n🏦 Step 3: Deploying Escrow Contract")
+        logger.info("\n Step 3: Deploying Escrow Contract")
         escrow_tx = self.generate_mock_tx_hash()
         logger.info(f"   Escrow Contract Address: {self.escrow_address}")
         logger.info(f"   Deployment Transaction: {escrow_tx}")
         logger.info(f"   Gas Used: ~3,124,567 wei")
         
         # Step 4: Project Activation
-        logger.info("\n✅ Step 4: Project Activated")
+        logger.info("\n Step 4: Project Activated")
         logger.info(f"   Project Status: ACTIVE")
         logger.info(f"   Ready for investments")
         
@@ -100,43 +100,43 @@ class CompleteFlowTest:
     async def test_payment_flow(self):
         """Test the payment processing flow"""
         logger.info("\n" + "="*60)
-        logger.info("💰 TESTING PAYMENT PROCESSING FLOW")
+        logger.info(" TESTING PAYMENT PROCESSING FLOW")
         logger.info("="*60)
         
         # Step 1: Investor initiates payment
         payment_amount = Decimal('1000.00')  # $1000 investment
-        logger.info("📋 Step 1: Investor Initiates Payment")
+        logger.info(" Step 1: Investor Initiates Payment")
         logger.info(f"   Investor: {self.investor_address}")
         logger.info(f"   Amount: ${payment_amount}")
         logger.info(f"   Payment Method: Fiat (EUR via SEPA)")
         
         # Step 2: Circle payment intent created
-        logger.info("\n🏦 Step 2: Circle Payment Intent Created")
+        logger.info("\n Step 2: Circle Payment Intent Created")
         circle_payment_id = "pi_" + secrets.token_hex(16)
         logger.info(f"   Circle Payment ID: {circle_payment_id}")
         logger.info(f"   Status: PENDING")
         logger.info(f"   Bank Details Provided to Investor")
         
         # Step 3: Investor transfers EUR
-        logger.info("\n💳 Step 3: Investor Transfers EUR")
+        logger.info("\n Step 3: Investor Transfers EUR")
         logger.info(f"   Bank Transfer: EUR {payment_amount} to Circle IBAN")
         logger.info(f"   Reference: {circle_payment_id}")
         
         # Step 4: Circle on-ramps to EURC
-        logger.info("\n🔄 Step 4: Circle On-ramps EUR to EURC")
+        logger.info("\n Step 4: Circle On-ramps EUR to EURC")
         eurc_amount = payment_amount  # 1:1 conversion for EURC
         logger.info(f"   EURC Amount: {eurc_amount}")
         logger.info(f"   Conversion Rate: 1 EUR = 1 EURC")
         
         # Step 5: Circle webhook notification
-        logger.info("\n🔔 Step 5: Circle Webhook Notification")
+        logger.info("\n Step 5: Circle Webhook Notification")
         webhook_tx = self.generate_mock_tx_hash()
         logger.info(f"   Webhook Received: payment.successful")
         logger.info(f"   Payment ID: {circle_payment_id}")
         logger.info(f"   Status: COMPLETED")
         
         # Step 6: Backend transfers EURC to escrow
-        logger.info("\n🔗 Step 6: EURC Transfer to Escrow")
+        logger.info("\n Step 6: EURC Transfer to Escrow")
         blockchain_tx = self.generate_mock_tx_hash()
         logger.info(f"   From: Platform Treasury")
         logger.info(f"   To: {self.escrow_address}")
@@ -145,7 +145,7 @@ class CompleteFlowTest:
         logger.info(f"   Gas Used: ~45,000 wei")
         
         # Step 7: Investment confirmed
-        logger.info("\n✅ Step 7: Investment Confirmed")
+        logger.info("\n Step 7: Investment Confirmed")
         tokens_allocated = int(eurc_amount * 10**18)  # 1 EURC = 1 token
         logger.info(f"   Tokens Allocated: {tokens_allocated / 10**18:,} TPT")
         logger.info(f"   Investment Recorded in Database")
@@ -162,31 +162,31 @@ class CompleteFlowTest:
     async def test_escrow_completion(self):
         """Test escrow completion and fund release"""
         logger.info("\n" + "="*60)
-        logger.info("🎯 TESTING ESCROW COMPLETION FLOW")
+        logger.info(" TESTING ESCROW COMPLETION FLOW")
         logger.info("="*60)
         
         # Step 1: Target amount reached
-        logger.info("📊 Step 1: Target Amount Reached")
+        logger.info(" Step 1: Target Amount Reached")
         logger.info(f"   Target: $10,000")
         logger.info(f"   Raised: $10,000")
         logger.info(f"   Status: TARGET_REACHED")
         
         # Step 2: Escrow completed
-        logger.info("\n✅ Step 2: Escrow Completed")
+        logger.info("\n Step 2: Escrow Completed")
         completion_tx = self.generate_mock_tx_hash()
         logger.info(f"   Escrow Status: COMPLETED")
         logger.info(f"   Transaction: {completion_tx}")
         logger.info(f"   Tokens Ready for Distribution")
         
         # Step 3: Investors claim tokens
-        logger.info("\n🎁 Step 3: Investors Claim Tokens")
+        logger.info("\n Step 3: Investors Claim Tokens")
         claim_tx = self.generate_mock_tx_hash()
         logger.info(f"   Investor: {self.investor_address}")
         logger.info(f"   Tokens Claimed: 1,000 TPT")
         logger.info(f"   Transaction: {claim_tx}")
         
         # Step 4: Project owner releases funds
-        logger.info("\n💰 Step 4: Project Owner Releases Funds")
+        logger.info("\n Step 4: Project Owner Releases Funds")
         release_tx = self.generate_mock_tx_hash()
         logger.info(f"   From: {self.escrow_address}")
         logger.info(f"   To: {self.project_owner}")
@@ -202,7 +202,7 @@ class CompleteFlowTest:
     async def run_complete_test(self):
         """Run the complete integration test"""
         try:
-            logger.info("🎯 COMPLETE BLOCKCHAIN INTEGRATION TEST")
+            logger.info(" COMPLETE BLOCKCHAIN INTEGRATION TEST")
             logger.info("This test demonstrates the full flow from project creation to fund release")
             
             # Test project creation
@@ -216,18 +216,18 @@ class CompleteFlowTest:
             
             # Print final summary
             logger.info("\n" + "="*60)
-            logger.info("🎉 COMPLETE FLOW TEST SUMMARY")
+            logger.info(" COMPLETE FLOW TEST SUMMARY")
             logger.info("="*60)
-            logger.info(f"📄 Project: {project_result['project_data']['name']}")
+            logger.info(f" Project: {project_result['project_data']['name']}")
             logger.info(f"   Token: {project_result['token_address']}")
             logger.info(f"   Escrow: {project_result['escrow_address']}")
             logger.info(f"")
-            logger.info(f"💰 Investment: ${payment_result['payment_amount']}")
+            logger.info(f" Investment: ${payment_result['payment_amount']}")
             logger.info(f"   Circle Payment: {payment_result['circle_payment_id']}")
             logger.info(f"   Blockchain TX: {payment_result['blockchain_tx']}")
             logger.info(f"   Tokens: {payment_result['tokens_allocated'] / 10**18:,} TPT")
             logger.info(f"")
-            logger.info(f"✅ Completion:")
+            logger.info(f" Completion:")
             logger.info(f"   Escrow: {escrow_result['completion_tx']}")
             logger.info(f"   Claim: {escrow_result['claim_tx']}")
             logger.info(f"   Release: {escrow_result['release_tx']}")
@@ -241,7 +241,7 @@ class CompleteFlowTest:
             }
             
         except Exception as e:
-            logger.error(f"❌ Complete test failed: {str(e)}")
+            logger.error(f" Complete test failed: {str(e)}")
             raise
 
 async def main():
@@ -251,10 +251,10 @@ async def main():
         result = await test.run_complete_test()
         
         # Print contract addresses for the user
-        print(f"\n📋 CONTRACT ADDRESSES FOR TESTING:")
+        print(f"\n CONTRACT ADDRESSES FOR TESTING:")
         print(f"Token Contract: {result['project']['token_address']}")
         print(f"Escrow Contract: {result['project']['escrow_address']}")
-        print(f"\n🔗 Test Transaction Hashes:")
+        print(f"\n Test Transaction Hashes:")
         print(f"Token Deployment: {result['project']['token_tx']}")
         print(f"Escrow Deployment: {result['project']['escrow_tx']}")
         print(f"EURC Transfer: {result['payment']['blockchain_tx']}")
