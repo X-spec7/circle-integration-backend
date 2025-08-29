@@ -39,9 +39,11 @@ class Settings(BaseSettings):
         default=os.getenv("CIRCLE_BASE_URL", "https://api.circle.com/v1"),
         description="Circle API base URL"
     )
+    # Note: Circle webhooks now use ECDSA signatures with public keys, not webhook secrets
+    # The webhook_secret field is kept for backward compatibility but is no longer used
     circle_webhook_secret: str = Field(
         default=os.getenv("CIRCLE_WEBHOOK_SECRET", ""),
-        description="Circle webhook secret"
+        description="Circle webhook secret (deprecated - now using ECDSA signatures)"
     )
     
     # Blockchain settings
