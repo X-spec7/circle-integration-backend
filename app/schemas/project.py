@@ -46,10 +46,17 @@ class ProjectResponse(ProjectBase):
     image_url: Optional[str] = None
     business_plan_url: Optional[str] = None
     whitepaper_url: Optional[str] = None
+    
+    # Updated blockchain details for 3 contracts
     token_contract_address: Optional[str] = None
-    escrow_contract_address: Optional[str] = None
+    ieo_contract_address: Optional[str] = None
+    reward_tracking_contract_address: Optional[str] = None
+    
+    # Deployment transaction hashes
     token_deployment_tx: Optional[str] = None
-    escrow_deployment_tx: Optional[str] = None
+    ieo_deployment_tx: Optional[str] = None
+    reward_tracking_deployment_tx: Optional[str] = None
+    
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -72,10 +79,12 @@ class ProjectStats(BaseModel):
     total_investors: int
 
 class ProjectDeploymentResponse(BaseModel):
-    """Schema for project deployment response"""
+    """Schema for project deployment response - Updated for 3 contracts"""
     project_id: str
     token_contract_address: str
-    escrow_contract_address: str
+    ieo_contract_address: str
+    reward_tracking_contract_address: str
     token_deployment_tx: str
-    escrow_deployment_tx: str
-    deployment_status: str 
+    ieo_deployment_tx: str
+    reward_tracking_deployment_tx: str
+    deployment_status: str

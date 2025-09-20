@@ -41,11 +41,15 @@ class Project(Base):
     business_plan_url = Column(String(500))
     whitepaper_url = Column(String(500))
     
-    # Blockchain details
-    token_contract_address = Column(String)  # Polygon token contract
-    escrow_contract_address = Column(String)  # Escrow smart contract
+    # Blockchain details - Updated for 3 contracts
+    token_contract_address = Column(String)  # FundraisingToken contract
+    ieo_contract_address = Column(String)    # IEO contract
+    reward_tracking_contract_address = Column(String)  # RewardTracking contract
+    
+    # Deployment transaction hashes
     token_deployment_tx = Column(String)  # Token deployment transaction hash
-    escrow_deployment_tx = Column(String)  # Escrow deployment transaction hash
+    ieo_deployment_tx = Column(String)    # IEO deployment transaction hash
+    reward_tracking_deployment_tx = Column(String)  # RewardTracking deployment transaction hash
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -55,4 +59,4 @@ class Project(Base):
     investments = relationship("Investment", back_populates="project")
 
     def __repr__(self):
-        return f"<Project(id={self.id}, name='{self.name}', status='{self.status}')>" 
+        return f"<Project(id={self.id}, name='{self.name}', status='{self.status}')>"

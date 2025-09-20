@@ -16,15 +16,18 @@ from app.core.config import settings
 # Import compiled contract constants
 try:
     from compiled_contracts.contract_constants import (
-        SIMPLEERC20_ABI, SIMPLEERC20_BYTECODE,
-        SIMPLEESCROW_ABI, SIMPLEESCROW_BYTECODE
+        FUNDRAISINGTOKEN_ABI, FUNDRAISINGTOKEN_BYTECODE,
+        IEO_ABI, IEO_BYTECODE,
+        REWARDTRACKING_ABI, REWARDTRACKING_BYTECODE
     )
 except ImportError:
     # Fallback if compiled contracts are not available
-    SIMPLEERC20_ABI = []
-    SIMPLEERC20_BYTECODE = "0x"
-    SIMPLEESCROW_ABI = []
-    SIMPLEESCROW_BYTECODE = "0x"
+    FUNDRAISINGTOKEN_ABI = []
+    FUNDRAISINGTOKEN_BYTECODE = "0x"
+    IEO_ABI = []
+    IEO_BYTECODE = "0x"
+    REWARDTRACKING_ABI = []
+    REWARDTRACKING_BYTECODE = "0x"
 
 logger = logging.getLogger(__name__)
 
@@ -101,322 +104,317 @@ class BlockchainService:
                 })
                 return result
             except Exception as e:
-                error_msg = str(e)
-                # Track failed attempt
-                self.deployment_attempts.append({
-                    'type': deployment_func.__name__,
-                    'success': False,
-                    'error': error_msg,
-                    'attempt': attempt + 1
-                })
-                
-                if "nonce too low" in error_msg.lower() and attempt < max_retries - 1:
-                    logger.warning(f"Nonce issue detected, retrying deployment (attempt {attempt + 1}/{max_retries})")
-                    await asyncio.sleep(5)  # Wait 5 seconds before retry
-                    continue
-                else:
-                    logger.error(f"Deployment failed after {attempt + 1} attempts: {error_msg}")
+                logger.warning(f"Deployment attempt {attempt + 1} failed: {str(e)}")
+                if attempt == max_retries - 1:
+                    # Track failed deployment
+                    self.deployment_attempts.append({
+                        'type': deployment_func.__name__,
+                        'success': False,
+                        'error': str(e),
+                        'attempt': attempt + 1
+                    })
                     raise
+                await asyncio.sleep(2)  # Wait before retry
     
-    def get_deployment_history(self) -> list:
-        """Get deployment attempt history for debugging"""
-        return self.deployment_attempts.copy()
+    async def deploy_fundraising_token(
+        self,
+        name: str,
+        symbol: str,
+        total_supply: int,
+        price_per_token: Decimal
+    ) -> Tuple[str, Dict[str, Any]]:
+        """Deploy FundraisingToken contract"""
+        try:
+            # Convert price to wei (18 decimals)
+            price_wei = int(price_per_token * Decimal(10**18))
+            
+            # Prepare constructor arguments
+            constructor_args = [
+                name,
+                symbol,
+                18,  # decimals
+                total_supply,
+                price_wei,
+                self.account.address  # owner
+            ]
+            
+            # Deploy contract
+            contract = self.w3.eth.contract(
+                abi=FUNDRAISINGTOKEN_ABI,
+                bytecode=FUNDRAISINGTOKEN_BYTECODE
+            )
+            
+            # Build transaction
+            constructor = contract.constructor(*constructor_args)
+            tx = constructor.build_transaction({
+                'from': self.account.address,
+                'nonce': self.get_current_nonce(),
+                'gas': 2000000,  # Increased gas limit
+                'gasPrice': self.w3.eth.gas_price
+            })
+            
+            # Sign and send transaction
+            signed_tx = self.account.sign_transaction(tx)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            
+            # Wait for confirmation
+            tx_receipt = await self.wait_for_transaction_confirmation(tx_hash.hex())
+            
+            if tx_receipt['status'] == 1:
+                contract_address = tx_receipt['contract_address']
+                logger.info(f"FundraisingToken deployed at: {contract_address}")
+                
+                return contract_address, {
+                    'transaction_hash': tx_hash.hex(),
+                    'contract_address': contract_address,
+                    'gas_used': tx_receipt['gas_used'],
+                    'block_number': tx_receipt['block_number']
+                }
+            else:
+                raise Exception("Transaction failed")
+                
+        except Exception as e:
+            logger.error(f"Error deploying FundraisingToken: {str(e)}")
+            raise
     
-    def clear_deployment_history(self):
-        """Clear deployment attempt history"""
-        self.deployment_attempts.clear()
+    async def deploy_ieo_contract(
+        self,
+        token_address: str,
+        target_amount: Decimal,
+        price_per_token: Decimal,
+        end_date: int,
+        min_investment: int = 100,  # $100 minimum
+        max_investment: int = 1000000,  # $1M maximum
+        claim_delay: int = 7 * 24 * 3600,  # 7 days
+        refund_period: int = 30 * 24 * 3600  # 30 days
+    ) -> Tuple[str, Dict[str, Any]]:
+        """Deploy IEO contract"""
+        try:
+            # Convert amounts to wei (6 decimals for USDC)
+            target_amount_wei = int(target_amount * Decimal(10**6))
+            price_wei = int(price_per_token * Decimal(10**6))
+            
+            # Prepare constructor arguments
+            constructor_args = [
+                token_address,  # tokenAddress
+                self.account.address,  # admin
+                claim_delay,  # CLAIM_DELAY
+                refund_period,  # REFUND_PERIOD
+                min_investment,  # MIN_INVESTMENT
+                max_investment,  # MAX_INVESTMENT
+                self.account.address,  # businessAdmin
+                end_date,  # ieoStartTime
+                price_wei,  # minTokenPrice
+                price_wei,  # maxTokenPrice
+                price_wei,  # lastValidPrice
+                3600,  # priceStalenessThreshold (1 hour)
+                1000,  # maxPriceDeviation (10%)
+                True,  # circuitBreakerEnabled
+                False  # circuitBreakerTriggered
+            ]
+            
+            # Deploy contract
+            contract = self.w3.eth.contract(
+                abi=IEO_ABI,
+                bytecode=IEO_BYTECODE
+            )
+            
+            # Build transaction
+            constructor = contract.constructor(*constructor_args)
+            tx = constructor.build_transaction({
+                'from': self.account.address,
+                'nonce': self.get_current_nonce(),
+                'gas': 3000000,  # Increased gas limit for IEO
+                'gasPrice': self.w3.eth.gas_price
+            })
+            
+            # Sign and send transaction
+            signed_tx = self.account.sign_transaction(tx)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            
+            # Wait for confirmation
+            tx_receipt = await self.wait_for_transaction_confirmation(tx_hash.hex())
+            
+            if tx_receipt['status'] == 1:
+                contract_address = tx_receipt['contract_address']
+                logger.info(f"IEO contract deployed at: {contract_address}")
+                
+                return contract_address, {
+                    'transaction_hash': tx_hash.hex(),
+                    'contract_address': contract_address,
+                    'gas_used': tx_receipt['gas_used'],
+                    'block_number': tx_receipt['block_number']
+                }
+            else:
+                raise Exception("Transaction failed")
+                
+        except Exception as e:
+            logger.error(f"Error deploying IEO contract: {str(e)}")
+            raise
     
-    async def deploy_erc20_token(
+    async def deploy_reward_tracking_contract(
+        self,
+        token_address: str,
+        ieo_address: str
+    ) -> Tuple[str, Dict[str, Any]]:
+        """Deploy RewardTracking contract"""
+        try:
+            # Prepare constructor arguments
+            constructor_args = [
+                token_address,  # tokenAddress
+                ieo_address    # ieoContract
+            ]
+            
+            # Deploy contract
+            contract = self.w3.eth.contract(
+                abi=REWARDTRACKING_ABI,
+                bytecode=REWARDTRACKING_BYTECODE
+            )
+            
+            # Build transaction
+            constructor = contract.constructor(*constructor_args)
+            tx = constructor.build_transaction({
+                'from': self.account.address,
+                'nonce': self.get_current_nonce(),
+                'gas': 2000000,  # Gas limit for RewardTracking
+                'gasPrice': self.w3.eth.gas_price
+            })
+            
+            # Sign and send transaction
+            signed_tx = self.account.sign_transaction(tx)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            
+            # Wait for confirmation
+            tx_receipt = await self.wait_for_transaction_confirmation(tx_hash.hex())
+            
+            if tx_receipt['status'] == 1:
+                contract_address = tx_receipt['contract_address']
+                logger.info(f"RewardTracking contract deployed at: {contract_address}")
+                
+                return contract_address, {
+                    'transaction_hash': tx_hash.hex(),
+                    'contract_address': contract_address,
+                    'gas_used': tx_receipt['gas_used'],
+                    'block_number': tx_receipt['block_number']
+                }
+            else:
+                raise Exception("Transaction failed")
+                
+        except Exception as e:
+            logger.error(f"Error deploying RewardTracking contract: {str(e)}")
+            raise
+    
+    async def deploy_project_contracts(
         self,
         name: str,
         symbol: str,
         total_supply: int,
         price_per_token: Decimal,
-        owner_address: Optional[str] = None
-    ) -> Tuple[str, Dict[str, Any]]:
-        """
-        Deploy ERC20 token contract
-        
-        Args:
-            name: Token name
-            symbol: Token symbol
-            total_supply: Total token supply
-            price_per_token: Price per token in USDC
-            owner_address: Address of the project owner (defaults to deployer address)
-            
-        Returns:
-            Tuple of (contract_address, deployment_info)
-        """
-        try:
-            # Use deployer address as owner if not specified
-            if owner_address is None:
-                owner_address = self.account.address
-            
-            # Convert price to wei (18 decimals)
-            price_wei = int(price_per_token * Decimal('1e18'))
-            
-            # Use compiled contract bytecode and ABI
-            contract_bytecode = SIMPLEERC20_BYTECODE
-            contract_abi = SIMPLEERC20_ABI
-            
-            if not contract_bytecode or contract_bytecode == "0x":
-                raise Exception("Contract bytecode not available. Please compile contracts first.")
-            
-            # Create contract instance
-            contract = self.w3.eth.contract(
-                abi=contract_abi,
-                bytecode=contract_bytecode
-            )
-            
-            # Prepare constructor parameters
-            constructor_params = [
-                name,
-                symbol,
-                total_supply,
-                price_wei,
-                owner_address
-            ]
-            
-            # Get current nonce
-            nonce = self.get_current_nonce()
-            
-            # Build transaction
-            transaction = contract.constructor(*constructor_params).build_transaction({
-                'from': self.account.address,
-                'nonce': nonce,
-                'gas': 3000000,  # Adjust gas limit as needed
-                'gasPrice': self.w3.eth.gas_price
-            })
-            
-            # Sign and send transaction
-            signed_txn = self.w3.eth.account.sign_transaction(transaction, self.account.key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
-            
-            # Wait for transaction receipt
-            tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-            
-            if tx_receipt.status == 1:
-                contract_address = tx_receipt.contractAddress
-                deployment_info = {
-                    'contract_address': contract_address,
-                    'transaction_hash': tx_hash.hex(),
-                    'block_number': tx_receipt.blockNumber,
-                    'gas_used': tx_receipt.gasUsed
-                }
-                
-                logger.info(f"ERC20 token deployed successfully: {contract_address}")
-                return contract_address, deployment_info
-            else:
-                raise Exception("Contract deployment failed")
-                
-        except Exception as e:
-            logger.error(f"Error deploying ERC20 token: {str(e)}")
-            raise
-    
-    async def deploy_escrow_contract(
-        self,
-        project_token_address: str,
-        project_owner_address: str,
         target_amount: Decimal,
-        token_price: Decimal,
         end_date: int
-    ) -> Tuple[str, Dict[str, Any]]:
-        """
-        Deploy escrow contract for a project
-        
-        Args:
-            project_token_address: Address of the project's ERC20 token
-            project_owner_address: Address of the project owner
-            target_amount: Target fundraising amount in USDC
-            token_price: Price per token in USDC
-            end_date: Project end date as Unix timestamp
-            
-        Returns:
-            Tuple of (contract_address, deployment_info)
-        """
+    ) -> Dict[str, Any]:
+        """Deploy all 3 contracts for a project"""
         try:
-            # Convert amounts to wei (18 decimals)
-            target_amount_wei = int(target_amount * Decimal('1e18'))
-            token_price_wei = int(token_price * Decimal('1e18'))
+            logger.info(f"Starting deployment of project contracts for {name}")
             
-            # Use compiled contract bytecode and ABI
-            contract_bytecode = SIMPLEESCROW_BYTECODE
-            contract_abi = SIMPLEESCROW_ABI
-            
-            if not contract_bytecode or contract_bytecode == "0x":
-                raise Exception("Contract bytecode not available. Please compile contracts first.")
-            
-            # Create contract instance
-            contract = self.w3.eth.contract(
-                abi=contract_abi,
-                bytecode=contract_bytecode
+            # 1. Deploy FundraisingToken
+            token_address, token_deployment = await self.deploy_fundraising_token(
+                name=name,
+                symbol=symbol,
+                total_supply=total_supply,
+                price_per_token=price_per_token
             )
             
-            # Prepare constructor parameters
-            constructor_params = [
-                project_token_address,
-                self.usdc_address,  # USDC token address
-                project_owner_address,
-                target_amount_wei,
-                token_price_wei,
-                end_date
-            ]
+            # 2. Deploy IEO contract
+            ieo_address, ieo_deployment = await self.deploy_ieo_contract(
+                token_address=token_address,
+                target_amount=target_amount,
+                price_per_token=price_per_token,
+                end_date=end_date
+            )
             
-            # Get current nonce (wait a bit to ensure previous transaction is processed)
-            await asyncio.sleep(2)  # Wait 2 seconds for previous transaction
-            nonce = self.get_current_nonce()
+            # 3. Deploy RewardTracking contract
+            reward_tracking_address, reward_tracking_deployment = await self.deploy_reward_tracking_contract(
+                token_address=token_address,
+                ieo_address=ieo_address
+            )
             
-            # Build transaction
-            transaction = contract.constructor(*constructor_params).build_transaction({
-                'from': self.account.address,
-                'nonce': nonce,
-                'gas': 4000000,  # Higher gas limit for escrow contract
-                'gasPrice': self.w3.eth.gas_price
-            })
+            # 4. Configure contracts (set reward tracking addresses)
+            await self.configure_contracts(
+                token_address=token_address,
+                ieo_address=ieo_address,
+                reward_tracking_address=reward_tracking_address
+            )
             
-            # Sign and send transaction
-            signed_txn = self.w3.eth.account.sign_transaction(transaction, self.account.key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            logger.info(f"All contracts deployed successfully for project {name}")
             
-            # Wait for transaction receipt
-            tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-            
-            if tx_receipt.status == 1:
-                contract_address = tx_receipt.contractAddress
-                deployment_info = {
-                    'contract_address': contract_address,
-                    'transaction_hash': tx_hash.hex(),
-                    'block_number': tx_receipt.blockNumber,
-                    'gas_used': tx_receipt.gasUsed
+            return {
+                'token_contract': {
+                    'address': token_address,
+                    'deployment': token_deployment
+                },
+                'ieo_contract': {
+                    'address': ieo_address,
+                    'deployment': ieo_deployment
+                },
+                'reward_tracking_contract': {
+                    'address': reward_tracking_address,
+                    'deployment': reward_tracking_deployment
                 }
-                
-                logger.info(f"Escrow contract deployed successfully: {contract_address}")
-                return contract_address, deployment_info
-            else:
-                raise Exception("Contract deployment failed")
-                
+            }
+            
         except Exception as e:
-            logger.error(f"Error deploying escrow contract: {str(e)}")
+            logger.error(f"Error deploying project contracts: {str(e)}")
             raise
     
-    async def transfer_eurc_to_escrow(
+    async def configure_contracts(
         self,
-        escrow_address: str,
-        amount: Decimal
-    ) -> Dict[str, Any]:
-        """
-        Transfer EURC tokens to escrow contract
-        
-        Args:
-            escrow_address: Address of the escrow contract
-            amount: Amount to transfer in EURC
-            
-        Returns:
-            Transaction information
-        """
+        token_address: str,
+        ieo_address: str,
+        reward_tracking_address: str
+    ):
+        """Configure contracts to work together"""
         try:
-            # EURC contract address on Polygon (you'll need to verify this)
-            eurc_address = "0xE111178A87A3BFf0c8d18DECBa5798827539Ae99"
-            
-            # Create EURC contract instance
-            eurc_contract = self.w3.eth.contract(
-                address=eurc_address,
-                abi=self.usdc_abi  # Using same ABI as USDC
+            # Get contract instances
+            token_contract = self.w3.eth.contract(
+                address=token_address,
+                abi=FUNDRAISINGTOKEN_ABI
             )
             
-            # Convert amount to wei (6 decimals for EURC)
-            amount_wei = int(amount * Decimal('1e6'))
+            ieo_contract = self.w3.eth.contract(
+                address=ieo_address,
+                abi=IEO_ABI
+            )
             
-            # Build transfer transaction
-            transaction = eurc_contract.functions.transfer(
-                escrow_address,
-                amount_wei
-            ).build_transaction({
+            # Set reward tracking address in token contract
+            tx = token_contract.functions.setRewardTrackingAddress(reward_tracking_address).build_transaction({
                 'from': self.account.address,
-                'nonce': self.w3.eth.get_transaction_count(self.account.address),
+                'nonce': self.get_current_nonce(),
                 'gas': 100000,
                 'gasPrice': self.w3.eth.gas_price
             })
             
-            # Sign and send transaction
-            signed_txn = self.w3.eth.account.sign_transaction(transaction, self.account.key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            signed_tx = self.account.sign_transaction(tx)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            await self.wait_for_transaction_confirmation(tx_hash.hex())
             
-            # Wait for transaction receipt
-            tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            # Set reward tracking address in IEO contract
+            tx = ieo_contract.functions.setRewardTrackingAddress(reward_tracking_address).build_transaction({
+                'from': self.account.address,
+                'nonce': self.get_current_nonce(),
+                'gas': 100000,
+                'gasPrice': self.w3.eth.gas_price
+            })
             
-            if tx_receipt.status == 1:
-                transfer_info = {
-                    'transaction_hash': tx_hash.hex(),
-                    'block_number': tx_receipt.blockNumber,
-                    'gas_used': tx_receipt.gasUsed,
-                    'amount': amount,
-                    'recipient': escrow_address
-                }
-                
-                logger.info(f"EURC transfer successful: {amount} to {escrow_address}")
-                return transfer_info
-            else:
-                raise Exception("EURC transfer failed")
-                
-        except Exception as e:
-            logger.error(f"Error transferring EURC: {str(e)}")
-            raise
-    
-    async def get_contract_balance(self, contract_address: str, token_address: str) -> Decimal:
-        """
-        Get token balance of a contract
-        
-        Args:
-            contract_address: Address of the contract
-            token_address: Address of the token contract
+            signed_tx = self.account.sign_transaction(tx)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            await self.wait_for_transaction_confirmation(tx_hash.hex())
             
-        Returns:
-            Balance as Decimal
-        """
-        try:
-            token_contract = self.w3.eth.contract(
-                address=token_address,
-                abi=self.usdc_abi
-            )
-            
-            balance_wei = token_contract.functions.balanceOf(contract_address).call()
-            balance = Decimal(balance_wei) / Decimal('1e6')  # Assuming 6 decimals
-            
-            return balance
+            logger.info("Contracts configured successfully")
             
         except Exception as e:
-            logger.error(f"Error getting contract balance: {str(e)}")
-            raise
-    
-    async def get_transaction_status(self, tx_hash: str) -> Dict[str, Any]:
-        """
-        Get transaction status
-        
-        Args:
-            tx_hash: Transaction hash
-            
-        Returns:
-            Transaction status information
-        """
-        try:
-            tx_receipt = self.w3.eth.get_transaction_receipt(tx_hash)
-            
-            if tx_receipt:
-                return {
-                    'status': 'success' if tx_receipt.status == 1 else 'failed',
-                    'block_number': tx_receipt.blockNumber,
-                    'gas_used': tx_receipt.gasUsed,
-                    'contract_address': tx_receipt.contractAddress
-                }
-            else:
-                return {'status': 'pending'}
-                
-        except TransactionNotFound:
-            return {'status': 'pending'}
-        except Exception as e:
-            logger.error(f"Error getting transaction status: {str(e)}")
+            logger.error(f"Error configuring contracts: {str(e)}")
             raise
 
-# Global blockchain service instance
-blockchain_service = BlockchainService() 
+# Global instance
+blockchain_service = BlockchainService()

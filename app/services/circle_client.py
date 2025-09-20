@@ -226,16 +226,32 @@ class CircleClient:
             logger.error(f"Unexpected error getting business account balance: {str(e)}")
             raise
 
+    async def get_all_wallets(self) -> Dict[str, Any]:
+        """Get all wallets from Circle"""
+        try:
+            response = await self.client.get("/wallets")
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Circle API error getting wallets: {e.response.text}")
+            raise Exception(f"Failed to get wallets: {e.response.text}")
+        except Exception as e:
+            logger.error(f"Unexpected error getting wallets: {str(e)}")
+            raise
+
     # Legacy methods (keeping for backward compatibility)
     
     async def transfer_to_escrow(self, amount: str, currency: str, escrow_address: str, project_id: str) -> Dict[str, Any]:
-        """Transfer EURC to on-chain escrow smart contract (DEPRECATED - use crypto payout instead)"""
-        logger.warning("transfer_to_escrow is deprecated. Use create_crypto_payout instead.")
+        """Transfer from Circle Mint business account to on-chain escrow smart contract"""
         try:
             idempotency_key = str(uuid.uuid4())
             
             payload = {
                 "idempotencyKey": idempotency_key,
+                "source": {
+                    "type": "wallet",
+                    "id": "primary"  # Circle Mint business account
+                },
                 "destination": {
                     "type": "blockchain",
                     "address": escrow_address,
@@ -271,6 +287,40 @@ class CircleClient:
             raise Exception(f"Failed to get transfer status: {e.response.text}")
         except Exception as e:
             logger.error(f"Unexpected error getting transfer status: {str(e)}")
+            raise
+
+    async def create_mint_transfer(self, amount: str, currency: str, escrow_address: str, project_id: str) -> Dict[str, Any]:
+        """Create transfer from Circle Mint business account to blockchain address"""
+        try:
+            idempotency_key = str(uuid.uuid4())
+            
+            payload = {
+                "idempotencyKey": idempotency_key,
+                "source": {
+                    "type": "wallet",
+                    "id": "primary"  # Circle Mint business account
+                },
+                "destination": {
+                    "type": "blockchain",
+                    "address": escrow_address,
+                    "chain": "MATIC"  # Polygon
+                },
+                "amount": {"amount": amount, "currency": currency},
+                "metadata": {
+                    "project_id": project_id,
+                    "transfer_type": "escrow_deposit"
+                }
+            }
+            
+            response = await self.client.post("/transfers", json=payload)
+            response.raise_for_status()
+            return response.json()
+            
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Circle API error creating mint transfer: {e.response.text}")
+            raise Exception(f"Failed to create mint transfer: {e.response.text}")
+        except Exception as e:
+            logger.error(f"Unexpected error creating mint transfer: {str(e)}")
             raise
     
     async def create_wallet(self, description: str = None) -> Dict[str, Any]:

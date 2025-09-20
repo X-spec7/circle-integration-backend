@@ -53,29 +53,20 @@ class CirclePaymentFlow:
             
             logger.info(f"Currency conversion initiated: {conversion_id}")
             
-            # Step 4: Add escrow address to Address Book
-            recipient_result = await self._add_escrow_to_address_book(
-                escrow_address, project_name
+            # Step 4: Create USDC transfer to escrow (Circle Mint approach)
+            transfer_result = await self._create_usdc_transfer_to_escrow(
+                amount, escrow_address, project_id
             )
-            recipient_id = recipient_result["data"]["id"]
+            transfer_id = transfer_result["data"]["id"]
             
-            logger.info(f"Escrow address added to address book: {recipient_id}")
-            
-            # Step 5: Create USDC payout to escrow
-            payout_result = await self._create_usdc_payout_to_escrow(
-                amount, recipient_id
-            )
-            payout_id = payout_result["data"]["id"]
-            
-            logger.info(f"USDC payout to escrow initiated: {payout_id}")
+            logger.info(f"USDC transfer to escrow initiated: {transfer_id}")
             
             return {
                 "status": "success",
                 "payment_id": payment_id,
                 "conversion_id": conversion_id,
-                "recipient_id": recipient_id,
-                "payout_id": payout_id,
-                "flow": "card_payment → eur → eurc → usdc → escrow"
+                "transfer_id": transfer_id,
+                "flow": "card_payment → eur → eurc → usdc → escrow (Circle Mint)"
             }
             
         except Exception as e:
@@ -121,27 +112,24 @@ class CirclePaymentFlow:
             logger.error(f"Error adding escrow to address book: {str(e)}")
             raise
     
-    async def _create_usdc_payout_to_escrow(self, amount: Decimal, recipient_id: str) -> Dict[str, Any]:
-        """Create USDC payout to escrow contract"""
+    async def _create_usdc_transfer_to_escrow(self, amount: Decimal, escrow_address: str, project_id: str) -> Dict[str, Any]:
+        """Create USDC transfer from Circle Mint to escrow contract"""
         try:
-            if not settings.circle_mint_wallet_id:
-                raise ValueError("Circle Mint wallet ID not configured")
-            
-            return await self.circle_client.create_crypto_payout(
+            return await self.circle_client.create_mint_transfer(
                 amount=str(int(amount * 100)),  # USDC amount in cents
                 currency="USDC",
-                recipient_id=recipient_id,
-                source_wallet_id=settings.circle_mint_wallet_id
+                escrow_address=escrow_address,
+                project_id=project_id
             )
         except Exception as e:
-            logger.error(f"Error creating USDC payout: {str(e)}")
+            logger.error(f"Error creating USDC transfer to escrow: {str(e)}")
             raise
     
     async def get_payment_flow_status(
         self,
         payment_id: str = None,
         conversion_id: str = None,
-        payout_id: str = None
+        transfer_id: str = None
     ) -> Dict[str, Any]:
         """Get status of payment flow components"""
         try:
@@ -151,9 +139,9 @@ class CirclePaymentFlow:
                 payment_status = await self.circle_client.get_payment_status(payment_id)
                 status["payment"] = payment_status["data"]
             
-            if payout_id:
-                payout_status = await self.circle_client.get_payout_status(payout_id)
-                status["payout"] = payout_status["data"]
+            if transfer_id:
+                transfer_status = await self.circle_client.get_transfer_status(transfer_id)
+                status["transfer"] = transfer_status["data"]
             
             return status
             
