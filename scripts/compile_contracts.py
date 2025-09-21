@@ -27,11 +27,12 @@ def compile_contract(contract_path, contract_name):
         return None
     
     try:
-        # Compile contract
+        # Compile contract with all dependencies
         cmd = [
             'solc',
             '--optimize',
             '--combined-json', 'abi,bin',
+            '--allow-paths', '.',
             contract_path
         ]
         
@@ -50,23 +51,38 @@ def compile_contract(contract_path, contract_name):
             print(f"Output: {result.stdout}")
             return None
         
-        contract_key = f"{contract_path}:{contract_name}"
+        # Extract contract data
+        if 'contracts' in output:
+            # Find the main contract (not test contracts)
+            for contract_key, contract_data in output['contracts'].items():
+                if contract_name in contract_key and '.t.sol' not in contract_key:
+                    abi = contract_data['abi']
+                    if isinstance(abi, str):
+                        abi = json.loads(abi)
+                    return {
+                        'abi': abi,
+                        'bytecode': contract_data['bin']
+                    }
         
-        if contract_key in output['contracts']:
-            contract_data = output['contracts'][contract_key]
-            # ABI is already a list, not a JSON string
-            return {
-                'abi': contract_data['abi'],
-                'bytecode': contract_data['bin']
-            }
-        else:
-            print(f"Contract {contract_name} not found in compilation output")
-            print(f"Available contracts: {list(output['contracts'].keys())}")
-            return None
-            
-    except Exception as e:
-        print(f"Error compiling {contract_name}: {str(e)}")
+        print(f"No contract data found for {contract_name}")
         return None
+        
+    except Exception as e:
+        print(f"Error compiling {contract_name}: {e}")
+        return None
+
+def convert_json_to_python(json_data):
+    """Convert JSON data to Python-compatible format"""
+    if isinstance(json_data, dict):
+        return {key: convert_json_to_python(value) for key, value in json_data.items()}
+    elif isinstance(json_data, list):
+        return [convert_json_to_python(item) for item in json_data]
+    elif json_data == "false":
+        return False
+    elif json_data == "true":
+        return True
+    else:
+        return json_data
 
 def main():
     """Main compilation function"""
@@ -83,12 +99,16 @@ def main():
     # Contracts to compile
     contracts = [
         {
-            'name': 'SimpleERC20',
-            'path': contracts_dir / 'simple_erc20.sol',
+            'name': 'FundraisingToken',
+            'path': contracts_dir / 'FundraisingToken.sol',
         },
         {
-            'name': 'SimpleEscrow',
-            'path': contracts_dir / 'simple_escrow.sol',
+            'name': 'IEO',
+            'path': contracts_dir / 'IEO.sol',
+        },
+        {
+            'name': 'RewardTracking',
+            'path': contracts_dir / 'RewardTracking.sol',
         }
     ]
     
@@ -106,6 +126,9 @@ def main():
         result = compile_contract(str(contract['path']), contract['name'])
         
         if result:
+            # Convert JSON to Python-compatible format
+            result['abi'] = convert_json_to_python(result['abi'])
+            
             compiled_contracts[contract['name']] = result
             
             # Save compiled contract
@@ -141,4 +164,4 @@ def create_python_constants(compiled_contracts, output_dir):
     print(f"Created Python constants file: {constants_file}")
 
 if __name__ == "__main__":
-    main() 
+    main()
