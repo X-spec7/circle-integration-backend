@@ -39,6 +39,9 @@ class Project(Base):
     min_investment = Column(Integer, default=100, nullable=False)  # USDC (6 decimals)
     max_investment = Column(Integer, default=1000000, nullable=False)  # USDC (6 decimals)
     
+    # Business admin wallet
+    business_admin_wallet = Column(String, nullable=True)  # Business admin wallet address
+    
     # File URLs
     image_url = Column(String(500))
     business_plan_url = Column(String(500))

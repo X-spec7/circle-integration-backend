@@ -284,6 +284,7 @@ class AdminService:
                     delay_days=project.delay_days,
                     min_investment=project.min_investment,
                     max_investment=project.max_investment,
+                    business_admin_wallet=project.business_admin_wallet,
                     token_contract_address=project.token_contract_address,
                     ieo_contract_address=project.ieo_contract_address,
                     reward_tracking_contract_address=project.reward_tracking_contract_address,
@@ -353,6 +354,7 @@ class AdminService:
                 delay_days=project.delay_days,
                 min_investment=project.min_investment,
                 max_investment=project.max_investment,
+                business_admin_wallet=project.business_admin_wallet,
                 token_contract_address=project.token_contract_address,
                 ieo_contract_address=project.ieo_contract_address,
                 reward_tracking_contract_address=project.reward_tracking_contract_address,
@@ -395,6 +397,8 @@ class AdminService:
                 project.status = update_data.status
             if update_data.risk_level is not None:
                 project.risk_level = update_data.risk_level
+            if update_data.business_admin_wallet is not None:
+                project.business_admin_wallet = update_data.business_admin_wallet
             
             project.updated_at = datetime.utcnow()
             db.commit()
@@ -453,6 +457,12 @@ class AdminService:
             
             transaction_hash = "0x" + "1" * 64  # Simulated transaction hash
             
+            # Update the project record
+            old_business_admin = project.business_admin_wallet
+            project.business_admin_wallet = update_data.new_business_admin_wallet
+            project.updated_at = datetime.utcnow()
+            db.commit()
+            
             # Log admin action
             await self._log_admin_action(
                 db=db,
@@ -461,7 +471,7 @@ class AdminService:
                 target_type="project",
                 target_id=update_data.project_id,
                 details={
-                    "old_business_admin": "0x" + "0" * 40,  # Simulated old admin
+                    "old_business_admin": old_business_admin,
                     "new_business_admin": update_data.new_business_admin_wallet,
                     "transaction_hash": transaction_hash
                 }
@@ -469,7 +479,7 @@ class AdminService:
             
             return BusinessAdminUpdateResponse(
                 project_id=update_data.project_id,
-                old_business_admin="0x" + "0" * 40,  # Simulated old admin
+                old_business_admin=old_business_admin or "0x" + "0" * 40,
                 new_business_admin=update_data.new_business_admin_wallet,
                 transaction_hash=transaction_hash,
                 success=True,
@@ -562,6 +572,7 @@ class AdminService:
                     delay_days=project.delay_days,
                     min_investment=project.min_investment,
                     max_investment=project.max_investment,
+                    business_admin_wallet=project.business_admin_wallet,
                     token_contract_address=project.token_contract_address,
                     ieo_contract_address=project.ieo_contract_address,
                     reward_tracking_contract_address=project.reward_tracking_contract_address,

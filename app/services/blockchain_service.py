@@ -35,8 +35,8 @@ class BlockchainService:
     """Service for blockchain operations including contract deployment"""
     
     def __init__(self):
-        self.w3 = Web3(Web3.HTTPProvider(settings.sepolia_rpc_url))
-        self.account: LocalAccount = Account.from_key(settings.sepolia_private_key)
+        self.w3 = Web3(Web3.HTTPProvider(settings.rpc_url))
+        self.account: LocalAccount = Account.from_key(settings.private_key)
         self.w3.eth.default_account = self.account.address
         
         # Get USDC address based on network
@@ -287,20 +287,68 @@ class BlockchainService:
             logger.error(f"Error deploying RewardTracking contract: {str(e)}")
             raise
     
+    async def transfer_tokens_to_business_admin(
+        self,
+        token_address: str,
+        business_admin_address: str,
+        amount: int
+    ) -> Dict[str, Any]:
+        """Transfer tokens from deployer to business admin wallet"""
+        try:
+            # Get contract instance
+            token_contract = self.w3.eth.contract(
+                address=token_address,
+                abi=FUNDRAISINGTOKEN_ABI
+            )
+            
+            # Build transfer transaction
+            tx = token_contract.functions.transfer(
+                business_admin_address,
+                amount
+            ).build_transaction({
+                'from': self.account.address,
+                'nonce': self.get_current_nonce(),
+                'gas': 100000,
+                'gasPrice': self.w3.eth.gas_price
+            })
+            
+            # Sign and send transaction
+            signed_tx = self.account.sign_transaction(tx)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            
+            # Wait for confirmation
+            tx_receipt = await self.wait_for_transaction_confirmation(tx_hash.hex())
+            
+            if tx_receipt['status'] == 1:
+                logger.info(f"Transferred {amount} tokens to business admin: {business_admin_address}")
+                
+                return {
+                    'transaction_hash': tx_hash.hex(),
+                    'gas_used': tx_receipt['gas_used'],
+                    'block_number': tx_receipt['block_number'],
+                    'success': True
+                }
+            else:
+                raise Exception("Token transfer transaction failed")
+                
+        except Exception as e:
+            logger.error(f"Error transferring tokens to business admin: {str(e)}")
+            raise
+    
     async def deploy_project_contracts(
         self,
         name: str,
         symbol: str,
         initial_supply: int,
-        admin_address: str,
         business_admin_address: str,
         delay_days: int = 7,
         min_investment: int = 100,
         max_investment: int = 1000000
     ) -> Dict[str, Any]:
-        """Deploy all 3 contracts for a project"""
+        """Deploy all 3 contracts for a project and transfer tokens to business admin"""
         try:
             logger.info(f"Starting deployment of project contracts for {name}")
+            logger.info(f"Business admin address: {business_admin_address}")
             
             # 1. Deploy FundraisingToken
             token_address, token_deployment = await self.deploy_fundraising_token(
@@ -310,11 +358,11 @@ class BlockchainService:
                 decimals=18
             )
             
-            # 2. Deploy IEO contract
+            # 2. Deploy IEO contract with business admin address
             ieo_address, ieo_deployment = await self.deploy_ieo_contract(
                 token_address=token_address,
-                admin_address=admin_address,
-                business_admin_address=business_admin_address,
+                admin_address=self.account.address,  # Platform admin
+                business_admin_address=business_admin_address,  # Business admin
                 delay_days=delay_days,
                 min_investment=min_investment,
                 max_investment=max_investment
@@ -333,7 +381,15 @@ class BlockchainService:
                 reward_tracking_address=reward_tracking_address
             )
             
+            # 5. Transfer all tokens to business admin wallet
+            token_transfer_result = await self.transfer_tokens_to_business_admin(
+                token_address=token_address,
+                business_admin_address=business_admin_address,
+                amount=initial_supply
+            )
+            
             logger.info(f"All contracts deployed successfully for project {name}")
+            logger.info(f"Tokens transferred to business admin: {business_admin_address}")
             
             return {
                 'token_contract': {
@@ -347,7 +403,13 @@ class BlockchainService:
                 'reward_tracking_contract': {
                     'address': reward_tracking_address,
                     'deployment': reward_tracking_deployment
-                }
+                },
+                'token_transfer': {
+                    'transaction_hash': token_transfer_result['transaction_hash'],
+                    'gas_used': token_transfer_result['gas_used'],
+                    'success': token_transfer_result['success']
+                },
+                'business_admin_wallet': business_admin_address
             }
             
         except Exception as e:

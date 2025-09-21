@@ -64,6 +64,7 @@ class AdminProjectResponse(BaseModel):
     delay_days: int
     min_investment: int
     max_investment: int
+    business_admin_wallet: Optional[str] = None
     token_contract_address: Optional[str] = None
     ieo_contract_address: Optional[str] = None
     reward_tracking_contract_address: Optional[str] = None

@@ -48,6 +48,23 @@ class ProjectService:
                     detail="Only SMEs can create projects"
                 )
             
+            # Validate business admin wallet address
+            if not project_data.business_admin_wallet:
+                db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Business admin wallet address is required"
+                )
+            
+            # Basic wallet address validation (should start with 0x and be 42 characters)
+            if not (project_data.business_admin_wallet.startswith('0x') and 
+                    len(project_data.business_admin_wallet) == 42):
+                db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid business admin wallet address format"
+                )
+            
             # Create project record with PENDING status
             project = Project(
                 owner_id=user.id,
@@ -61,6 +78,7 @@ class ProjectService:
                 delay_days=project_data.delay_days,
                 min_investment=project_data.min_investment,
                 max_investment=project_data.max_investment,
+                business_admin_wallet=project_data.business_admin_wallet,
                 image_url=project_data.image_url,
                 business_plan_url=project_data.business_plan_url,
                 whitepaper_url=project_data.whitepaper_url,
@@ -71,15 +89,15 @@ class ProjectService:
             db.flush()  # Get the ID without committing
             db.refresh(project)
             
-            # Deploy all 3 contracts
+            # Deploy all 3 contracts and transfer tokens
             logger.info(f"Deploying contracts for project {project.id}")
+            logger.info(f"Business admin wallet: {project_data.business_admin_wallet}")
             try:
                 deployment_result = await blockchain_service.deploy_project_contracts(
                     name=project_data.name,
                     symbol=project_data.symbol,
                     initial_supply=project_data.initial_supply,
-                    admin_address=blockchain_service.account.address,
-                    business_admin_address=blockchain_service.account.address,
+                    business_admin_address=project_data.business_admin_wallet,
                     delay_days=project_data.delay_days,
                     min_investment=project_data.min_investment,
                     max_investment=project_data.max_investment
@@ -108,6 +126,7 @@ class ProjectService:
             db.commit()
             
             logger.info(f"Project {project.id} created successfully with all contracts deployed")
+            logger.info(f"Tokens transferred to business admin: {project_data.business_admin_wallet}")
             
             return ProjectDeploymentResponse(
                 project_id=project.id,
@@ -117,6 +136,8 @@ class ProjectService:
                 token_deployment_tx=deployment_result['token_contract']['deployment']['transaction_hash'],
                 ieo_deployment_tx=deployment_result['ieo_contract']['deployment']['transaction_hash'],
                 reward_tracking_deployment_tx=deployment_result['reward_tracking_contract']['deployment']['transaction_hash'],
+                business_admin_wallet=project_data.business_admin_wallet,
+                tokens_transferred=deployment_result['token_transfer']['success'],
                 deployment_status="completed"
             )
             

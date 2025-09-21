@@ -24,6 +24,9 @@ class ProjectCreate(ProjectBase):
     delay_days: int = Field(default=7, ge=1, le=365, description="Claim and refund delay in days")
     min_investment: int = Field(default=100, ge=1, description="Minimum investment amount in USDC (6 decimals)")
     max_investment: int = Field(default=1000000, ge=1000, description="Maximum investment amount in USDC (6 decimals)")
+    
+    # Business admin wallet address
+    business_admin_wallet: str = Field(..., description="Business admin wallet address for receiving tokens")
 
 class ProjectUpdate(BaseModel):
     """Schema for updating a project"""
@@ -40,6 +43,7 @@ class ProjectUpdate(BaseModel):
     delay_days: Optional[int] = Field(None, ge=1, le=365)
     min_investment: Optional[int] = Field(None, ge=1)
     max_investment: Optional[int] = Field(None, ge=1000)
+    business_admin_wallet: Optional[str] = Field(None, description="Business admin wallet address")
 
 class ProjectResponse(ProjectBase):
     """Schema for project response"""
@@ -55,6 +59,9 @@ class ProjectResponse(ProjectBase):
     delay_days: int
     min_investment: int
     max_investment: int
+    
+    # Business admin wallet
+    business_admin_wallet: Optional[str] = None
     
     # Updated blockchain details for 3 contracts
     token_contract_address: Optional[str] = None
@@ -96,4 +103,6 @@ class ProjectDeploymentResponse(BaseModel):
     token_deployment_tx: str
     ieo_deployment_tx: str
     reward_tracking_deployment_tx: str
+    business_admin_wallet: str
+    tokens_transferred: bool
     deployment_status: str
