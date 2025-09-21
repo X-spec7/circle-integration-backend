@@ -39,8 +39,6 @@ class Settings(BaseSettings):
         default=os.getenv("CIRCLE_BASE_URL", "https://api.circle.com/v1"),
         description="Circle API base URL"
     )
-    # Note: Circle webhooks now use ECDSA signatures with public keys, not webhook secrets
-    # The webhook_secret field is kept for backward compatibility but is no longer used
     circle_webhook_secret: str = Field(
         default=os.getenv("CIRCLE_WEBHOOK_SECRET", ""),
         description="Circle webhook secret (deprecated - now using ECDSA signatures)"
@@ -52,21 +50,90 @@ class Settings(BaseSettings):
     
     # Blockchain settings
     network: str = Field(
-        default=os.getenv("NETWORK", "POLYGON"),
-        description="Blockchain network"
+        default=os.getenv("NETWORK", "SEPOLIA"),
+        description="Blockchain network (SEPOLIA, POLYGON, MAINNET)"
     )
+    
+    # Sepolia testnet settings
+    sepolia_rpc_url: str = Field(
+        default=os.getenv("SEPOLIA_RPC_URL", "https://sepolia.infura.io/v3/YOUR_PROJECT_ID"),
+        description="Sepolia RPC URL"
+    )
+    sepolia_private_key: str = Field(
+        default=os.getenv("SEPOLIA_PRIVATE_KEY", ""),
+        description="Private key for deploying contracts on Sepolia"
+    )
+    
+    # Polygon settings
     polygon_rpc_url: str = Field(
         default=os.getenv("POLYGON_RPC_URL", "https://polygon-rpc.com"),
         description="Polygon RPC URL"
     )
     polygon_private_key: str = Field(
         default=os.getenv("POLYGON_PRIVATE_KEY", ""),
-        description="Private key for deploying contracts"
+        description="Private key for deploying contracts on Polygon"
     )
+    
+    # Ethereum mainnet settings
+    mainnet_rpc_url: str = Field(
+        default=os.getenv("MAINNET_RPC_URL", "https://mainnet.infura.io/v3/YOUR_PROJECT_ID"),
+        description="Ethereum mainnet RPC URL"
+    )
+    mainnet_private_key: str = Field(
+        default=os.getenv("MAINNET_PRIVATE_KEY", ""),
+        description="Private key for deploying contracts on mainnet"
+    )
+    
+    # Legacy settings (for backward compatibility)
     escrow_wallet_address: str = Field(
         default=os.getenv("ESCROW_WALLET_ADDRESS", ""),
-        description="Default escrow wallet address"
+        description="Default escrow wallet address (legacy)"
     )
+    sepolia_wallet_private_key: str = Field(
+        default=os.getenv("SEPOLIA_WALLET_PRIVATE_KEY", ""),
+        description="Sepolia wallet private key (legacy)"
+    )
+    sepolia_wallet_public_key: str = Field(
+        default=os.getenv("SEPOLIA_WALLET_PUBLIC_KEY", ""),
+        description="Sepolia wallet public key (legacy)"
+    )
+    
+    # Network-specific settings
+    @property
+    def rpc_url(self) -> str:
+        """Get RPC URL based on selected network"""
+        if self.network.upper() == "SEPOLIA":
+            return self.sepolia_rpc_url
+        elif self.network.upper() == "POLYGON":
+            return self.polygon_rpc_url
+        elif self.network.upper() == "MAINNET":
+            return self.mainnet_rpc_url
+        else:
+            return self.sepolia_rpc_url  # Default to Sepolia
+    
+    @property
+    def private_key(self) -> str:
+        """Get private key based on selected network"""
+        if self.network.upper() == "SEPOLIA":
+            return self.sepolia_private_key or self.sepolia_wallet_private_key
+        elif self.network.upper() == "POLYGON":
+            return self.polygon_private_key
+        elif self.network.upper() == "MAINNET":
+            return self.mainnet_private_key
+        else:
+            return self.sepolia_private_key or self.sepolia_wallet_private_key  # Default to Sepolia
+    
+    @property
+    def usdc_address(self) -> str:
+        """Get USDC address based on selected network"""
+        if self.network.upper() == "SEPOLIA":
+            return "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"  # Sepolia USDC
+        elif self.network.upper() == "POLYGON":
+            return "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"  # Polygon USDC
+        elif self.network.upper() == "MAINNET":
+            return "0xA0b86a33E6441b8c4C8C0d4b0c8C0d4b0c8C0d4b"  # Mainnet USDC
+        else:
+            return "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"  # Default to Sepolia
     
     # File upload settings
     upload_dir: str = Field(
@@ -90,6 +157,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"  # Ignore extra fields
 
 # Global settings instance
-settings = Settings() 
+settings = Settings()

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, Enum, Numeric, BigInteger, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, Enum, Numeric, BigInteger, ForeignKey, Integer
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -28,13 +28,16 @@ class Project(Base):
     symbol = Column(String(10), nullable=False)
     description = Column(Text, nullable=False)
     category = Column(String(100), nullable=False)
-    target_amount = Column(Numeric(15, 2), nullable=False)
-    price_per_token = Column(Numeric(10, 4), nullable=False)
-    total_supply = Column(BigInteger, nullable=False)
+    initial_supply = Column(BigInteger, nullable=False)  # Changed from total_supply
     current_raised = Column(Numeric(15, 2), default=0)
     end_date = Column(DateTime, nullable=False)
     risk_level = Column(Enum(RiskLevel), nullable=False)
     status = Column(Enum(ProjectStatus), default=ProjectStatus.PENDING)
+    
+    # IEO contract parameters
+    delay_days = Column(Integer, default=7, nullable=False)
+    min_investment = Column(Integer, default=100, nullable=False)  # USDC (6 decimals)
+    max_investment = Column(Integer, default=1000000, nullable=False)  # USDC (6 decimals)
     
     # File URLs
     image_url = Column(String(500))

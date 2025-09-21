@@ -10,9 +10,7 @@ class ProjectBase(BaseModel):
     symbol: str = Field(..., min_length=1, max_length=10, description="Token symbol")
     description: str = Field(..., min_length=10, description="Project description")
     category: str = Field(..., min_length=1, max_length=100, description="Project category")
-    target_amount: Decimal = Field(..., gt=0, description="Target fundraising amount")
-    price_per_token: Decimal = Field(..., gt=0, description="Price per token")
-    total_supply: int = Field(..., gt=0, description="Total token supply")
+    initial_supply: int = Field(..., gt=0, description="Initial token supply")
     end_date: datetime = Field(..., description="Project end date")
     risk_level: RiskLevel = Field(..., description="Project risk level")
 
@@ -21,6 +19,11 @@ class ProjectCreate(ProjectBase):
     image_url: Optional[str] = Field(None, max_length=500, description="Project image URL")
     business_plan_url: Optional[str] = Field(None, max_length=500, description="Business plan document URL")
     whitepaper_url: Optional[str] = Field(None, max_length=500, description="Whitepaper document URL")
+    
+    # IEO contract parameters
+    delay_days: int = Field(default=7, ge=1, le=365, description="Claim and refund delay in days")
+    min_investment: int = Field(default=100, ge=1, description="Minimum investment amount in USDC (6 decimals)")
+    max_investment: int = Field(default=1000000, ge=1000, description="Maximum investment amount in USDC (6 decimals)")
 
 class ProjectUpdate(BaseModel):
     """Schema for updating a project"""
@@ -28,14 +31,15 @@ class ProjectUpdate(BaseModel):
     symbol: Optional[str] = Field(None, min_length=1, max_length=10)
     description: Optional[str] = Field(None, min_length=10)
     category: Optional[str] = Field(None, min_length=1, max_length=100)
-    target_amount: Optional[Decimal] = Field(None, gt=0)
-    price_per_token: Optional[Decimal] = Field(None, gt=0)
-    total_supply: Optional[int] = Field(None, gt=0)
+    initial_supply: Optional[int] = Field(None, gt=0)
     end_date: Optional[datetime] = None
     risk_level: Optional[RiskLevel] = None
     image_url: Optional[str] = Field(None, max_length=500)
     business_plan_url: Optional[str] = Field(None, max_length=500)
     whitepaper_url: Optional[str] = Field(None, max_length=500)
+    delay_days: Optional[int] = Field(None, ge=1, le=365)
+    min_investment: Optional[int] = Field(None, ge=1)
+    max_investment: Optional[int] = Field(None, ge=1000)
 
 class ProjectResponse(ProjectBase):
     """Schema for project response"""
@@ -46,6 +50,11 @@ class ProjectResponse(ProjectBase):
     image_url: Optional[str] = None
     business_plan_url: Optional[str] = None
     whitepaper_url: Optional[str] = None
+    
+    # IEO contract parameters
+    delay_days: int
+    min_investment: int
+    max_investment: int
     
     # Updated blockchain details for 3 contracts
     token_contract_address: Optional[str] = None

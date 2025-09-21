@@ -35,12 +35,12 @@ class BlockchainService:
     """Service for blockchain operations including contract deployment"""
     
     def __init__(self):
-        self.w3 = Web3(Web3.HTTPProvider(settings.polygon_rpc_url))
-        self.account: LocalAccount = Account.from_key(settings.polygon_private_key)
+        self.w3 = Web3(Web3.HTTPProvider(settings.sepolia_rpc_url))
+        self.account: LocalAccount = Account.from_key(settings.sepolia_private_key)
         self.w3.eth.default_account = self.account.address
         
-        # USDC contract address on Polygon mainnet
-        self.usdc_address = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+        # Get USDC address based on network
+        self.usdc_address = settings.usdc_address
         
         # Track deployment attempts for cleanup
         self.deployment_attempts = []
@@ -70,7 +70,10 @@ class BlockchainService:
             }
         ]
         
-        logger.info(f"Blockchain service initialized with address: {self.account.address}")
+        logger.info(f"Blockchain service initialized with network: {settings.network}")
+        logger.info(f"RPC URL: {settings.rpc_url}")
+        logger.info(f"Account address: {self.account.address}")
+        logger.info(f"USDC address: {self.usdc_address}")
     
     def get_current_nonce(self) -> int:
         """Get the current nonce for the deployer account"""
@@ -120,22 +123,17 @@ class BlockchainService:
         self,
         name: str,
         symbol: str,
-        total_supply: int,
-        price_per_token: Decimal
+        initial_supply: int,
+        decimals: int = 18
     ) -> Tuple[str, Dict[str, Any]]:
         """Deploy FundraisingToken contract"""
         try:
-            # Convert price to wei (18 decimals)
-            price_wei = int(price_per_token * Decimal(10**18))
-            
             # Prepare constructor arguments
             constructor_args = [
                 name,
                 symbol,
-                18,  # decimals
-                total_supply,
-                price_wei,
-                self.account.address  # owner
+                decimals,
+                initial_supply
             ]
             
             # Deploy contract
@@ -180,37 +178,22 @@ class BlockchainService:
     async def deploy_ieo_contract(
         self,
         token_address: str,
-        target_amount: Decimal,
-        price_per_token: Decimal,
-        end_date: int,
-        min_investment: int = 100,  # $100 minimum
-        max_investment: int = 1000000,  # $1M maximum
-        claim_delay: int = 7 * 24 * 3600,  # 7 days
-        refund_period: int = 30 * 24 * 3600  # 30 days
+        admin_address: str,
+        business_admin_address: str,
+        delay_days: int = 7,
+        min_investment: int = 100,  # $100 minimum in USDC (6 decimals)
+        max_investment: int = 1000000  # $1M maximum in USDC (6 decimals)
     ) -> Tuple[str, Dict[str, Any]]:
         """Deploy IEO contract"""
         try:
-            # Convert amounts to wei (6 decimals for USDC)
-            target_amount_wei = int(target_amount * Decimal(10**6))
-            price_wei = int(price_per_token * Decimal(10**6))
-            
             # Prepare constructor arguments
             constructor_args = [
-                token_address,  # tokenAddress
-                self.account.address,  # admin
-                claim_delay,  # CLAIM_DELAY
-                refund_period,  # REFUND_PERIOD
-                min_investment,  # MIN_INVESTMENT
-                max_investment,  # MAX_INVESTMENT
-                self.account.address,  # businessAdmin
-                end_date,  # ieoStartTime
-                price_wei,  # minTokenPrice
-                price_wei,  # maxTokenPrice
-                price_wei,  # lastValidPrice
-                3600,  # priceStalenessThreshold (1 hour)
-                1000,  # maxPriceDeviation (10%)
-                True,  # circuitBreakerEnabled
-                False  # circuitBreakerTriggered
+                token_address,  # _tokenAddress
+                admin_address,  # _admin
+                business_admin_address,  # _businessAdmin
+                delay_days,  # _delayDays
+                min_investment,  # _minInvestment (in USDC, 6 decimals)
+                max_investment   # _maxInvestment (in USDC, 6 decimals)
             ]
             
             # Deploy contract
@@ -308,10 +291,12 @@ class BlockchainService:
         self,
         name: str,
         symbol: str,
-        total_supply: int,
-        price_per_token: Decimal,
-        target_amount: Decimal,
-        end_date: int
+        initial_supply: int,
+        admin_address: str,
+        business_admin_address: str,
+        delay_days: int = 7,
+        min_investment: int = 100,
+        max_investment: int = 1000000
     ) -> Dict[str, Any]:
         """Deploy all 3 contracts for a project"""
         try:
@@ -321,16 +306,18 @@ class BlockchainService:
             token_address, token_deployment = await self.deploy_fundraising_token(
                 name=name,
                 symbol=symbol,
-                total_supply=total_supply,
-                price_per_token=price_per_token
+                initial_supply=initial_supply,
+                decimals=18
             )
             
             # 2. Deploy IEO contract
             ieo_address, ieo_deployment = await self.deploy_ieo_contract(
                 token_address=token_address,
-                target_amount=target_amount,
-                price_per_token=price_per_token,
-                end_date=end_date
+                admin_address=admin_address,
+                business_admin_address=business_admin_address,
+                delay_days=delay_days,
+                min_investment=min_investment,
+                max_investment=max_investment
             )
             
             # 3. Deploy RewardTracking contract
