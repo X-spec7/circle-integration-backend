@@ -1,3 +1,8 @@
+# Import logging configuration first
+import logging_config
+
+import logging
+import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
@@ -46,13 +51,4 @@ def read_root():
         "version": settings.app_version,
         "docs": "/docs",
         "redoc": "/redoc"
-    }
-
-@app.get("/health")
-def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "app_name": settings.app_name,
-        "version": settings.app_version
     }
