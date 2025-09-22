@@ -36,13 +36,9 @@ class ProjectService:
         project_data: ProjectCreate
     ) -> ProjectDeploymentResponse:
         """Create a new project with all 3 contracts deployment (Token, IEO, RewardTracking)"""
-        # Start a database transaction
-        # db.begin()  # SQLAlchemy manages transactions automatically
-        
         try:
             # Validate user is SME
             if user.user_type != "sme":
-                # db.rollback()  # SQLAlchemy handles rollback automatically
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Only SMEs can create projects"
@@ -50,7 +46,6 @@ class ProjectService:
             
             # Validate business admin wallet address
             if not project_data.business_admin_wallet:
-                # db.rollback()  # SQLAlchemy handles rollback automatically
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Business admin wallet address is required"
@@ -59,13 +54,37 @@ class ProjectService:
             # Basic wallet address validation (should start with 0x and be 42 characters)
             if not (project_data.business_admin_wallet.startswith('0x') and 
                     len(project_data.business_admin_wallet) == 42):
-                # db.rollback()  # SQLAlchemy handles rollback automatically
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid business admin wallet address format"
                 )
             
-            # Create project record with PENDING status
+            logger.info(f"🚀 Starting project creation for: {project_data.name}")
+            logger.info(f"👤 Owner: {user.name} ({user.email})")
+            logger.info(f"🏢 Business admin wallet: {project_data.business_admin_wallet}")
+            
+            # STEP 1: Deploy contracts FIRST (before creating database record)
+            logger.info(f"�� Step 1: Deploying smart contracts...")
+            try:
+                deployment_result = await blockchain_service.deploy_project_contracts({
+                    "name": project_data.name,
+                    "symbol": project_data.symbol,
+                    "initial_supply": project_data.initial_supply,
+                    "business_admin_wallet": project_data.business_admin_wallet,
+                    "delay_days": project_data.delay_days,
+                    "min_investment": project_data.min_investment,
+                    "max_investment": project_data.max_investment
+                })
+                logger.info(f"✅ Smart contracts deployed successfully!")
+            except Exception as e:
+                logger.error(f"❌ Contract deployment failed: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Contract deployment failed: {str(e)}"
+                )
+            
+            # STEP 2: Create project record in database (only after successful deployment)
+            logger.info(f"📝 Step 2: Creating project record in database...")
             project = Project(
                 owner_id=user.id,
                 name=project_data.name,
@@ -73,7 +92,6 @@ class ProjectService:
                 description=project_data.description,
                 category=project_data.category,
                 initial_supply=project_data.initial_supply,
-                
                 risk_level=project_data.risk_level,
                 delay_days=project_data.delay_days,
                 min_investment=project_data.min_investment,
@@ -82,79 +100,50 @@ class ProjectService:
                 image_url=project_data.image_url,
                 business_plan_url=project_data.business_plan_url,
                 whitepaper_url=project_data.whitepaper_url,
-                status=ProjectStatus.PENDING
+                status=ProjectStatus.ACTIVE,  # Set to ACTIVE since contracts are deployed
+                
+                # Contract addresses from deployment
+                token_contract_address=deployment_result["token_contract_address"],
+                ieo_contract_address=deployment_result["ieo_contract_address"],
+                reward_tracking_contract_address=deployment_result["reward_tracking_contract_address"],
+                
+                # Deployment transaction hashes
+                token_deployment_tx=deployment_result["token_deployment_tx"],
+                ieo_deployment_tx=deployment_result["ieo_deployment_tx"],
+                reward_tracking_deployment_tx=deployment_result["reward_tracking_deployment_tx"]
             )
             
             db.add(project)
-            db.flush()  # Get the ID without committing
+            db.commit()
             db.refresh(project)
             
-            # Deploy all 3 contracts and transfer tokens
-            logger.info(f"Deploying contracts for project {project.id}")
-            logger.info(f"Business admin wallet: {project_data.business_admin_wallet}")
-            try:
-                deployment_result = await blockchain_service.deploy_project_contracts(
-                    name=project_data.name,
-                    symbol=project_data.symbol,
-                    initial_supply=project_data.initial_supply,
-                    business_admin_address=project_data.business_admin_wallet,
-                    delay_days=project_data.delay_days,
-                    min_investment=project_data.min_investment,
-                    max_investment=project_data.max_investment
-                )
-            except Exception as e:
-                logger.error(f"Contract deployment failed for project {project.id}: {str(e)}")
-                await self.cleanup_failed_deployment(project.id, db)
-                # db.rollback()  # SQLAlchemy handles rollback automatically
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Contract deployment failed: {str(e)}"
-                )
-            
-            # Update project with all contract addresses and set status to ACTIVE
-            project.token_contract_address = deployment_result['token_contract']['address']
-            project.ieo_contract_address = deployment_result['ieo_contract']['address']
-            project.reward_tracking_contract_address = deployment_result['reward_tracking_contract']['address']
-            
-            project.token_deployment_tx = deployment_result['token_contract']['deployment']['transaction_hash']
-            project.ieo_deployment_tx = deployment_result['ieo_contract']['deployment']['transaction_hash']
-            project.reward_tracking_deployment_tx = deployment_result['reward_tracking_contract']['deployment']['transaction_hash']
-            
-            project.status = ProjectStatus.ACTIVE
-            
-            # Commit the transaction only if everything succeeded
-            db.commit()
-            
-            logger.info(f"Project {project.id} created successfully with all contracts deployed")
-            logger.info(f"Tokens transferred to business admin: {project_data.business_admin_wallet}")
+            logger.info(f"✅ Project {project.id} created successfully in database!")
+            logger.info(f"📍 Token contract: {deployment_result['token_contract_address']}")
+            logger.info(f"📍 IEO contract: {deployment_result['ieo_contract_address']}")
+            logger.info(f"📍 Reward tracking contract: {deployment_result['reward_tracking_contract_address']}")
             
             return ProjectDeploymentResponse(
                 project_id=project.id,
-                token_contract_address=deployment_result['token_contract']['address'],
-                ieo_contract_address=deployment_result['ieo_contract']['address'],
-                reward_tracking_contract_address=deployment_result['reward_tracking_contract']['address'],
-                token_deployment_tx=deployment_result['token_contract']['deployment']['transaction_hash'],
-                ieo_deployment_tx=deployment_result['ieo_contract']['deployment']['transaction_hash'],
-                reward_tracking_deployment_tx=deployment_result['reward_tracking_contract']['deployment']['transaction_hash'],
+                token_contract_address=deployment_result["token_contract_address"],
+                ieo_contract_address=deployment_result["ieo_contract_address"],
+                reward_tracking_contract_address=deployment_result["reward_tracking_contract_address"],
+                token_deployment_tx=deployment_result["token_deployment_tx"],
+                ieo_deployment_tx=deployment_result["ieo_deployment_tx"],
+                reward_tracking_deployment_tx=deployment_result["reward_tracking_deployment_tx"],
                 business_admin_wallet=project_data.business_admin_wallet,
-                tokens_transferred=deployment_result['token_transfer']['success'],
+                tokens_transferred=True,
                 deployment_status="completed"
             )
             
         except HTTPException:
-            # Re-raise HTTP exceptions without additional rollback
+            # Re-raise HTTP exceptions as-is
             raise
         except Exception as e:
-            logger.error(f"Unexpected error creating project: {str(e)}")
-            # db.rollback()  # SQLAlchemy handles rollback automatically
+            logger.error(f"❌ Unexpected error creating project: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to create project: {str(e)}"
             )
-    
-    async def get_project(self, db: Session, project_id: str) -> Optional[Project]:
-        """Get project by ID"""
-        return db.query(Project).filter(Project.id == project_id).first()
     
     async def get_projects(
         self,
@@ -165,47 +154,76 @@ class ProjectService:
         skip: int = 0,
         limit: int = 100
     ) -> list[Project]:
-        """Get projects with optional filters"""
-        query = db.query(Project)
-        
-        if status:
-            query = query.filter(Project.status == status)
-        if category:
-            query = query.filter(Project.category == category)
-        if risk_level:
-            query = query.filter(Project.risk_level == risk_level)
-        
-        return query.offset(skip).limit(limit).all()
+        """Get projects with optional filtering"""
+        try:
+            query = db.query(Project)
+            
+            if status:
+                query = query.filter(Project.status == status)
+            if category:
+                query = query.filter(Project.category == category)
+            if risk_level:
+                query = query.filter(Project.risk_level == risk_level)
+            
+            return query.offset(skip).limit(limit).all()
+        except Exception as e:
+            logger.error(f"Error getting projects: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to get projects"
+            )
+    
+    async def get_project_by_id(self, db: Session, project_id: str) -> Optional[Project]:
+        """Get project by ID"""
+        try:
+            return db.query(Project).filter(Project.id == project_id).first()
+        except Exception as e:
+            logger.error(f"Error getting project {project_id}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to get project"
+            )
     
     async def update_project(
         self,
         db: Session,
         project_id: str,
-        user: User,
-        update_data: dict
-    ) -> Optional[Project]:
+        project_data: dict,
+        user: User
+    ) -> Project:
         """Update project (only by owner)"""
-        project = await self.get_project(db, project_id)
-        
-        if not project:
-            return None
-        
-        if project.owner_id != user.id:
+        try:
+            project = await self.get_project_by_id(db, project_id)
+            if not project:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Project not found"
+                )
+            
+            if project.owner_id != user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only project owner can update project"
+                )
+            
+            # Update fields
+            for field, value in project_data.items():
+                if hasattr(project, field) and value is not None:
+                    setattr(project, field, value)
+            
+            project.updated_at = datetime.utcnow()
+            db.commit()
+            db.refresh(project)
+            
+            return project
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error updating project {project_id}: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only project owner can update project"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update project"
             )
-        
-        # Update allowed fields
-        for field, value in update_data.items():
-            if hasattr(project, field) and field not in ['id', 'owner_id', 'created_at']:
-                setattr(project, field, value)
-        
-        project.updated_at = datetime.utcnow()
-        db.commit()
-        db.refresh(project)
-        
-        return project
     
     async def delete_project(
         self,
@@ -214,21 +232,32 @@ class ProjectService:
         user: User
     ) -> bool:
         """Delete project (only by owner)"""
-        project = await self.get_project(db, project_id)
-        
-        if not project:
-            return False
-        
-        if project.owner_id != user.id:
+        try:
+            project = await self.get_project_by_id(db, project_id)
+            if not project:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Project not found"
+                )
+            
+            if project.owner_id != user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only project owner can delete project"
+                )
+            
+            db.delete(project)
+            db.commit()
+            
+            return True
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error deleting project {project_id}: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only project owner can delete project"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete project"
             )
-        
-        db.delete(project)
-        db.commit()
-        
-        return True
 
-# Global instance
+# Create service instance
 project_service = ProjectService()
