@@ -66,7 +66,7 @@ async def get_projects(
     Get all projects with optional filtering (all authenticated users)
     """
     try:
-        projects = await project_service.get_projects(
+        projects = await project_service.get_project_by_ids(
             db=db,
             status=project_status,
             category=category,
@@ -91,7 +91,7 @@ async def get_project(
     Get a specific project by ID (all authenticated users)
     """
     try:
-        project = await project_service.get_project(db=db, project_id=project_id)
+        project = await project_service.get_project_by_id(db=db, project_id=project_id)
         return project
     except HTTPException:
         raise
@@ -241,7 +241,7 @@ async def get_project_stats(
     Get project statistics (all authenticated users)
     """
     try:
-        stats = await project_service.get_project_stats(db=db, project_id=project_id)
+        stats = await project_service.get_project_by_id_stats(db=db, project_id=project_id)
         return stats
     except HTTPException:
         raise

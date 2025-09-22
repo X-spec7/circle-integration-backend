@@ -74,7 +74,7 @@ contract FundraisingToken is ERC20, Ownable, IFundraisingToken {
         emit AddressWhitelisted(_msgSender());
         
         // Mint initial supply to owner
-        _mint(_msgSender(), initialSupply);
+        _mint(_msgSender(), initialSupply * 10 ** decimals_);
         
         // Freeze mint authority after initial mint
         _mintAuthorityFrozen = true;

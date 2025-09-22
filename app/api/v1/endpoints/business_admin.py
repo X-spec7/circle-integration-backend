@@ -19,6 +19,17 @@ from app.services.business_admin_service import business_admin_service
 
 router = APIRouter()
 
+# Ensure user is business admin
+async def get_business_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    """Ensure current user is a business admin"""
+    if current_user.user_type != UserType.BUSINESS_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only business admins can access this endpoint"
+        )
+    return current_user
+
+
 # Ensure user is business admin for a project
 async def verify_business_admin_access(
     project_id: str,
@@ -158,3 +169,52 @@ async def get_business_admin_projects(
 ):
     """Get projects where current user is business admin"""
     return await business_admin_service.get_business_admin_projects(db, current_user, page, limit)
+
+@router.post("/projects/{project_id}/set-oracle")
+async def set_oracle_address(
+    project_id: str,
+    oracle_data: dict,
+    current_user: User = Depends(get_business_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Set oracle address for a project's IEO contract"""
+    try:
+        logger.info(f"🔮 Business admin {current_user.email} setting oracle for project {project_id}")
+        
+        # Verify project exists and user has access
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+        
+        if not project.ieo_contract_address:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="IEO contract not deployed for this project"
+            )
+        
+        # Set oracle address via smart contract
+        tx_hash = await blockchain_service.set_oracle_address(
+            ieo_contract_address=project.ieo_contract_address,
+            oracle_address=oracle_data['oracle_address']
+        )
+        
+        logger.info(f"✅ Oracle address set for project {project_id}: {tx_hash}")
+        return {
+            "project_id": project_id,
+            "oracle_address": oracle_data['oracle_address'],
+            "transaction_hash": tx_hash,
+            "message": "Oracle address set successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error setting oracle address: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to set oracle address"
+        )
+

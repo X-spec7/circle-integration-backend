@@ -1,42 +1,30 @@
 #!/usr/bin/env python3
 """
 Smart Contract Compilation Script
-
-This script helps compile the smart contracts for deployment.
-Note: In production, you should use a proper Solidity compiler setup.
+Compiles Solidity contracts and generates Python constants
 """
 
 import json
-import os
 import subprocess
+import sys
 from pathlib import Path
 
-def check_solc():
-    """Check if solc compiler is available"""
+def compile_contract(contract_path: Path, contract_name: str):
+    """Compile a single Solidity contract"""
     try:
-        result = subprocess.run(['solc', '--version'], capture_output=True, text=True)
-        return result.returncode == 0
-    except FileNotFoundError:
-        return False
-
-def compile_contract(contract_path, contract_name):
-    """Compile a Solidity contract"""
-    if not check_solc():
-        print("Error: solc compiler not found. Please install solc first.")
-        print("Installation: https://docs.soliditylang.org/en/latest/installing-solidity.html")
-        return None
-    
-    try:
-        # Compile contract with all dependencies
+        # Change to contracts directory and run solc
+        contracts_dir = contract_path.parent
+        
+        # Run solc compiler with proper include paths
         cmd = [
-            'solc',
-            '--optimize',
-            '--combined-json', 'abi,bin',
-            '--allow-paths', '.',
-            contract_path
+            "solc",
+            "--optimize",
+            "--optimize-runs", "200",
+            "--combined-json", "abi,bin",
+            str(contract_path.name)
         ]
         
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=contracts_dir)
         
         if result.returncode != 0:
             print(f"Compilation failed for {contract_name}:")
@@ -71,18 +59,32 @@ def compile_contract(contract_path, contract_name):
         print(f"Error compiling {contract_name}: {e}")
         return None
 
-def convert_json_to_python(json_data):
+def convert_json_to_python(obj):
     """Convert JSON data to Python-compatible format"""
-    if isinstance(json_data, dict):
-        return {key: convert_json_to_python(value) for key, value in json_data.items()}
-    elif isinstance(json_data, list):
-        return [convert_json_to_python(item) for item in json_data]
-    elif json_data == "false":
+    if isinstance(obj, dict):
+        return {key: convert_json_to_python(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_json_to_python(item) for item in obj]
+    elif obj == "false":
         return False
-    elif json_data == "true":
+    elif obj == "true":
         return True
+    elif obj == "null":
+        return None
     else:
-        return json_data
+        return obj
+
+def create_python_constants(compiled_contracts, output_file):
+    """Create Python constants file from compiled contracts"""
+    with open(output_file, 'w') as f:
+        f.write('"""\n')
+        f.write('Compiled Contract Constants\n')
+        f.write('Generated automatically by compile_contracts.py\n')
+        f.write('"""\n\n')
+        
+        for contract_name, contract_data in compiled_contracts.items():
+            f.write(f'{contract_name.upper()}_ABI = {repr(convert_json_to_python(contract_data["abi"]))}\n\n')
+            f.write(f'{contract_name.upper()}_BYTECODE = {repr(contract_data["bytecode"])}\n\n')
 
 def main():
     """Main compilation function"""
@@ -119,49 +121,35 @@ def main():
         
         # Check if Solidity file exists
         if not contract['path'].exists():
-            print(f"Solidity file {contract['path']} not found.")
+            print(f"❌ Solidity file not found: {contract['path']}")
             continue
         
         # Compile contract
-        result = compile_contract(str(contract['path']), contract['name'])
+        result = compile_contract(contract['path'], contract['name'])
         
         if result:
-            # Convert JSON to Python-compatible format
-            result['abi'] = convert_json_to_python(result['abi'])
-            
-            compiled_contracts[contract['name']] = result
-            
-            # Save compiled contract
-            output_file = output_dir / f"{contract['name'].lower()}.json"
-            with open(output_file, 'w') as f:
-                json.dump(result, f, indent=2)
-            
             print(f"✓ {contract['name']} compiled successfully")
             print(f"  ABI: {len(result['abi'])} functions")
             print(f"  Bytecode: {len(result['bytecode'])} bytes")
-            print(f"  Saved to: {output_file}")
+            
+            # Save individual contract files
+            contract_file = output_dir / f"{contract['name'].lower()}.json"
+            with open(contract_file, 'w') as f:
+                json.dump(result, f, indent=2)
+            print(f"  Saved to: {contract_file}")
+            
+            # Store for Python constants
+            compiled_contracts[contract['name']] = result
         else:
-            print(f"✗ Failed to compile {contract['name']}")
+            print(f"❌ Failed to compile {contract['name']}")
     
     # Create Python constants file
     if compiled_contracts:
-        create_python_constants(compiled_contracts, output_dir)
-        print(f"\n✓ Compilation complete! Check {output_dir} for results.")
-    else:
-        print("\n✗ No contracts were compiled successfully.")
-
-def create_python_constants(compiled_contracts, output_dir):
-    """Create Python constants file with compiled contract data"""
-    constants_file = output_dir / "contract_constants.py"
+        constants_file = output_dir / "contract_constants.py"
+        create_python_constants(compiled_contracts, constants_file)
+        print(f"\nCreated Python constants file: {constants_file}")
     
-    with open(constants_file, 'w') as f:
-        f.write('"""Compiled Smart Contract Constants"""\n\n')
-        
-        for contract_name, contract_data in compiled_contracts.items():
-            f.write(f'{contract_name.upper()}_ABI = {json.dumps(contract_data["abi"], indent=2)}\n\n')
-            f.write(f'{contract_name.upper()}_BYTECODE = "{contract_data["bytecode"]}"\n\n')
-    
-    print(f"Created Python constants file: {constants_file}")
+    print(f"\n✓ Compilation complete! Check {output_dir} for results.")
 
 if __name__ == "__main__":
     main()
