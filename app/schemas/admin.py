@@ -55,7 +55,7 @@ class AdminProjectResponse(BaseModel):
     category: str
     initial_supply: int
     current_raised: Optional[Decimal] = None
-    end_date: datetime
+    
     risk_level: RiskLevel
     status: ProjectStatus
     image_url: Optional[str] = None

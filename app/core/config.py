@@ -60,7 +60,7 @@ class Settings(BaseSettings):
         description="Sepolia RPC URL"
     )
     sepolia_private_key: str = Field(
-        default=os.getenv("SEPOLIA_PRIVATE_KEY", ""),
+        default=os.getenv("SEPOLIA_WALLET_PRIVATE_KEY", ""),
         description="Private key for deploying contracts on Sepolia"
     )
     

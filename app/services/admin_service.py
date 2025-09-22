@@ -199,7 +199,7 @@ class AdminService:
             raise
         except Exception as e:
             logger.error(f"Error updating user: {str(e)}")
-            db.rollback()
+            # db.rollback()  # SQLAlchemy handles rollback automatically
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to update user: {str(e)}"
@@ -275,7 +275,7 @@ class AdminService:
                     category=project.category,
                     initial_supply=project.initial_supply,
                     current_raised=project.current_raised,
-                    end_date=project.end_date,
+                    
                     risk_level=project.risk_level,
                     status=project.status,
                     image_url=project.image_url,
@@ -345,7 +345,7 @@ class AdminService:
                 category=project.category,
                 initial_supply=project.initial_supply,
                 current_raised=project.current_raised,
-                end_date=project.end_date,
+                
                 risk_level=project.risk_level,
                 status=project.status,
                 image_url=project.image_url,
@@ -420,7 +420,7 @@ class AdminService:
             raise
         except Exception as e:
             logger.error(f"Error updating project: {str(e)}")
-            db.rollback()
+            # db.rollback()  # SQLAlchemy handles rollback automatically
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to update project: {str(e)}"
@@ -563,7 +563,7 @@ class AdminService:
                     category=project.category,
                     initial_supply=project.initial_supply,
                     current_raised=project.current_raised,
-                    end_date=project.end_date,
+                    
                     risk_level=project.risk_level,
                     status=project.status,
                     image_url=project.image_url,

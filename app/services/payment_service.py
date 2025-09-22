@@ -65,7 +65,7 @@ class PaymentService:
             raise
         except Exception as e:
             logger.error(f"Error creating investment: {str(e)}")
-            db.rollback()
+            # db.rollback()  # SQLAlchemy handles rollback automatically
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to create investment"
@@ -121,7 +121,7 @@ class PaymentService:
             raise
         except Exception as e:
             logger.error(f"Error initiating payment: {str(e)}")
-            db.rollback()
+            # db.rollback()  # SQLAlchemy handles rollback automatically
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to initiate payment"
@@ -180,7 +180,7 @@ class PaymentService:
             
         except Exception as e:
             logger.error(f"Error initiating fiat payment: {str(e)}")
-            db.rollback()
+            # db.rollback()  # SQLAlchemy handles rollback automatically
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to initiate fiat payment"
@@ -238,7 +238,7 @@ class PaymentService:
             
         except Exception as e:
             logger.error(f"Error initiating card payment: {str(e)}")
-            db.rollback()
+            # db.rollback()  # SQLAlchemy handles rollback automatically
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to initiate card payment"
@@ -343,7 +343,7 @@ class PaymentService:
             
         except Exception as e:
             logger.error(f"Error handling successful payment: {str(e)}")
-            db.rollback()
+            # db.rollback()  # SQLAlchemy handles rollback automatically
             return {"status": "error", "reason": str(e)}
     
     async def _handle_failed_payment(self, db: Session, payment: Payment, payment_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -367,7 +367,7 @@ class PaymentService:
             
         except Exception as e:
             logger.error(f"Error handling failed payment: {str(e)}")
-            db.rollback()
+            # db.rollback()  # SQLAlchemy handles rollback automatically
             return {"status": "error", "reason": str(e)}
     
     async def get_payment_status(self, db: Session, payment_id: str) -> Optional[Payment]:

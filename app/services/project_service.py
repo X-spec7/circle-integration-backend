@@ -27,7 +27,7 @@ class ProjectService:
                 logger.info(f"Project {project_id} marked as rejected due to deployment failure")
         except Exception as e:
             logger.error(f"Error cleaning up failed project {project_id}: {str(e)}")
-            db.rollback()
+            # db.rollback()  # SQLAlchemy handles rollback automatically
     
     async def create_project(
         self,
@@ -37,12 +37,12 @@ class ProjectService:
     ) -> ProjectDeploymentResponse:
         """Create a new project with all 3 contracts deployment (Token, IEO, RewardTracking)"""
         # Start a database transaction
-        db.begin()
+        # db.begin()  # SQLAlchemy manages transactions automatically
         
         try:
             # Validate user is SME
             if user.user_type != "sme":
-                db.rollback()
+                # db.rollback()  # SQLAlchemy handles rollback automatically
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Only SMEs can create projects"
@@ -50,7 +50,7 @@ class ProjectService:
             
             # Validate business admin wallet address
             if not project_data.business_admin_wallet:
-                db.rollback()
+                # db.rollback()  # SQLAlchemy handles rollback automatically
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Business admin wallet address is required"
@@ -59,7 +59,7 @@ class ProjectService:
             # Basic wallet address validation (should start with 0x and be 42 characters)
             if not (project_data.business_admin_wallet.startswith('0x') and 
                     len(project_data.business_admin_wallet) == 42):
-                db.rollback()
+                # db.rollback()  # SQLAlchemy handles rollback automatically
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid business admin wallet address format"
@@ -73,7 +73,7 @@ class ProjectService:
                 description=project_data.description,
                 category=project_data.category,
                 initial_supply=project_data.initial_supply,
-                end_date=project_data.end_date,
+                
                 risk_level=project_data.risk_level,
                 delay_days=project_data.delay_days,
                 min_investment=project_data.min_investment,
@@ -105,7 +105,7 @@ class ProjectService:
             except Exception as e:
                 logger.error(f"Contract deployment failed for project {project.id}: {str(e)}")
                 await self.cleanup_failed_deployment(project.id, db)
-                db.rollback()
+                # db.rollback()  # SQLAlchemy handles rollback automatically
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Contract deployment failed: {str(e)}"
@@ -146,7 +146,7 @@ class ProjectService:
             raise
         except Exception as e:
             logger.error(f"Unexpected error creating project: {str(e)}")
-            db.rollback()
+            # db.rollback()  # SQLAlchemy handles rollback automatically
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to create project: {str(e)}"

@@ -35,8 +35,8 @@ class BlockchainService:
     """Service for blockchain operations including contract deployment"""
     
     def __init__(self):
-        self.w3 = Web3(Web3.HTTPProvider(settings.rpc_url))
-        self.account: LocalAccount = Account.from_key(settings.private_key)
+        self.w3 = Web3(Web3.HTTPProvider(settings.sepolia_rpc_url))
+        self.account: LocalAccount = Account.from_key(settings.sepolia_private_key)
         self.w3.eth.default_account = self.account.address
         
         # Get USDC address based on network

@@ -1,0 +1,110 @@
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from datetime import datetime
+from decimal import Decimal
+
+class StartIEORequest(BaseModel):
+    """Schema for starting IEO"""
+    price_oracle_address: Optional[str] = Field(None, description="Price oracle contract address")
+
+class EndIEORequest(BaseModel):
+    """Schema for ending IEO"""
+    reason: Optional[str] = Field(None, description="Reason for ending IEO")
+
+class IEOStatusResponse(BaseModel):
+    """Schema for IEO status response"""
+    project_id: str
+    is_active: bool
+    is_paused: bool
+    start_time: Optional[datetime] = None
+    total_raised: Decimal
+    total_tokens_sold: Decimal
+    total_deposited: Decimal
+    total_withdrawn: Decimal
+    withdrawable_amount: Decimal
+    investment_count: int
+    investor_count: int
+    min_investment: Decimal
+    max_investment: Decimal
+    claim_delay_hours: int
+    refund_period_hours: int
+    withdrawal_delay_hours: int
+
+class WithdrawUSDCRequest(BaseModel):
+    """Schema for withdrawing specific USDC amount"""
+    amount: Decimal = Field(..., gt=0, description="USDC amount to withdraw (6 decimals)")
+
+class WithdrawAllUSDCRequest(BaseModel):
+    """Schema for withdrawing all available USDC"""
+    pass
+
+class WithdrawalResponse(BaseModel):
+    """Schema for withdrawal response"""
+    project_id: str
+    amount_withdrawn: Decimal
+    transaction_hash: str
+    success: bool
+    message: str
+    remaining_balance: Decimal
+
+class ProjectStatsResponse(BaseModel):
+    """Schema for project statistics response"""
+    project_id: str
+    project_name: str
+    project_symbol: str
+    total_raised: Decimal
+    total_tokens_sold: Decimal
+    total_deposited: Decimal
+    total_withdrawn: Decimal
+    withdrawable_amount: Decimal
+    investment_count: int
+    unique_investors: int
+    average_investment: Decimal
+    largest_investment: Decimal
+    smallest_investment: Decimal
+    is_ieo_active: bool
+    is_paused: bool
+    start_time: Optional[datetime] = None
+    created_at: datetime
+
+class WhitelistUserRequest(BaseModel):
+    """Schema for whitelisting a single user"""
+    wallet_address: str = Field(..., description="User wallet address to whitelist")
+
+class WhitelistBatchRequest(BaseModel):
+    """Schema for batch whitelisting users"""
+    wallet_addresses: List[str] = Field(..., min_items=1, max_items=100, description="List of wallet addresses to whitelist")
+
+class WhitelistResponse(BaseModel):
+    """Schema for whitelist operation response"""
+    project_id: str
+    operation: str  # "add", "remove", "batch_add", "batch_remove"
+    wallet_addresses: List[str]
+    transaction_hash: str
+    success: bool
+    message: str
+
+class WhitelistListResponse(BaseModel):
+    """Schema for whitelist list response"""
+    project_id: str
+    whitelisted_addresses: List[str]
+    total_count: int
+    page: int
+    limit: int
+    total_pages: int
+
+class CircuitBreakerSettings(BaseModel):
+    """Schema for circuit breaker settings"""
+    enabled: bool
+    triggered: bool
+    price_staleness_threshold: int  # seconds
+    max_price_deviation: int  # basis points
+    last_valid_price: Decimal
+    price_timestamp: Optional[datetime] = None
+
+class PriceValidationSettings(BaseModel):
+    """Schema for price validation settings"""
+    min_token_price: Decimal
+    max_token_price: Decimal
+    price_oracle_address: str
+    circuit_breaker: CircuitBreakerSettings

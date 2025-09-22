@@ -18,10 +18,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Ensure user is SME
+async def get_sme_user(current_user: User = Depends(get_current_user)) -> User:
+    """Ensure current user is an SME"""
+    if current_user.user_type != UserType.SME:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only SME users can create projects"
+        )
+    return current_user
+
 @router.post("/", response_model=ProjectDeploymentResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
     project_data: ProjectCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_sme_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -44,105 +54,51 @@ async def create_project(
 
 @router.get("/", response_model=List[ProjectResponse])
 async def get_projects(
-    status: Optional[str] = None,
+    project_status: Optional[str] = None,
     category: Optional[str] = None,
     risk_level: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get list of projects with optional filtering
-    
-    Query Parameters:
-    - status: Filter by project status (case-insensitive)
-      Valid values: "pending", "active", "completed", "rejected"
-    - category: Filter by project category
-    - risk_level: Filter by risk level (case-insensitive)
-      Valid values: "low", "medium", "high"
-    - skip: Number of records to skip (for pagination)
-    - limit: Maximum number of records to return (default: 100, max: 1000)
-    
-    Note: If no status filter is provided, only active projects are returned by default.
+    Get all projects with optional filtering (all authenticated users)
     """
-    # Validate limit
-    if limit > 1000:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Limit cannot exceed 1000"
+    try:
+        projects = await project_service.get_projects(
+            db=db,
+            status=project_status,
+            category=category,
+            risk_level=risk_level,
+            skip=skip,
+            limit=limit
         )
-    
-    query = db.query(Project)
-    
-    if status:
-        try:
-            # Convert string to ProjectStatus enum (case-insensitive)
-            project_status = ProjectStatus(status.lower())
-            query = query.filter(Project.status == project_status)
-        except ValueError:
-            valid_statuses = [s.value for s in ProjectStatus]
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Invalid status value: '{status}'. Valid values are: {valid_statuses}"
-            )
-    
-    if category:
-        query = query.filter(Project.category == category)
-    
-    if risk_level:
-        try:
-            # Convert string to RiskLevel enum (case-insensitive)
-            risk_level_enum = RiskLevel(risk_level.capitalize())
-            query = query.filter(Project.risk_level == risk_level_enum)
-        except ValueError:
-            valid_risk_levels = [r.value for r in RiskLevel]
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Invalid risk_level value: '{risk_level}'. Valid values are: {valid_risk_levels}"
-            )
-    
-    # Default to showing only active projects if no status filter is applied
-    if not status:
-        query = query.filter(Project.status == ProjectStatus.ACTIVE)
-    
-    projects = query.offset(skip).limit(limit).all()
-    return projects
+        return projects
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get projects: {str(e)}"
+        )
 
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(
     project_id: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get specific project details
+    Get a specific project by ID (all authenticated users)
     """
     try:
-        project = await project_service.get_project(db, project_id)
-        if not project:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Project not found"
-            )
-        
-        # Only show active projects to public
-        if project.status != ProjectStatus.ACTIVE:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Project not found"
-            )
-        
-        # Debug logging
-        logger.info(f"Retrieved project {project_id}: {project.name}, status: {project.status}")
-        
+        project = await project_service.get_project(db=db, project_id=project_id)
         return project
-        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error retrieving project {project_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving project: {str(e)}"
+            detail=f"Failed to get project: {str(e)}"
         )
 
 @router.put("/{project_id}", response_model=ProjectResponse)
@@ -153,16 +109,36 @@ async def update_project(
     db: Session = Depends(get_db)
 ):
     """
-    Update project (owner only)
+    Update a project (project owner or admin only)
     """
-    update_data = project_data.dict(exclude_unset=True)
-    project = await project_service.update_project(
-        db=db,
-        project_id=project_id,
-        user=current_user,
-        update_data=update_data
-    )
-    return project
+    try:
+        # Check if user is project owner or admin
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+        
+        if current_user.id != project.owner_id and current_user.user_type != UserType.ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only project owner or admin can update projects"
+            )
+        
+        updated_project = await project_service.update_project(
+            db=db,
+            project_id=project_id,
+            project_data=project_data
+        )
+        return updated_project
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update project: {str(e)}"
+        )
 
 @router.delete("/{project_id}")
 async def delete_project(
@@ -171,108 +147,106 @@ async def delete_project(
     db: Session = Depends(get_db)
 ):
     """
-    Delete project (owner only)
+    Delete a project (project owner or admin only)
     """
-    project = await project_service.get_project(db, project_id)
-    if not project:
+    try:
+        # Check if user is project owner or admin
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+        
+        if current_user.id != project.owner_id and current_user.user_type != UserType.ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only project owner or admin can delete projects"
+            )
+        
+        await project_service.delete_project(db=db, project_id=project_id)
+        return {"message": "Project deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete project: {str(e)}"
         )
-    
-    if project.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to delete this project"
-        )
-    
-    db.delete(project)
-    db.commit()
-    
-    return {"message": "Project deleted successfully"}
 
-@router.get("/user/projects", response_model=List[ProjectResponse])
-async def get_user_projects(
+@router.post("/{project_id}/upload-image")
+async def upload_project_image(
+    project_id: str,
+    file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get current user's projects
+    Upload project image (project owner or admin only)
     """
-    projects = db.query(Project).filter(Project.owner_id == current_user.id).all()
-    return projects
-
-@router.get("/{project_id}/escrow-address")
-async def get_project_escrow_address(
-    project_id: str,
-    db: Session = Depends(get_db)
-):
-    """
-    Get escrow address for a project
-    """
-    escrow_address = await project_service.get_escrow_address(db, project_id)
-    if not escrow_address:
+    try:
+        # Check if user is project owner or admin
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+        
+        if current_user.id != project.owner_id and current_user.user_type != UserType.ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only project owner or admin can upload images"
+            )
+        
+        # Validate file type
+        if not file.content_type.startswith('image/'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File must be an image"
+            )
+        
+        # Validate file size (max 5MB)
+        content = await file.read()
+        if len(content) > 5 * 1024 * 1024:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File size must be less than 5MB"
+            )
+        
+        # In a real implementation, you would upload to a cloud storage service
+        # For now, we'll just return a mock URL
+        image_url = f"https://example.com/images/{project_id}/{file.filename}"
+        
+        # Update project with image URL
+        project.image_url = image_url
+        db.commit()
+        
+        return {"message": "Image uploaded successfully", "image_url": image_url}
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project or escrow address not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload image: {str(e)}"
         )
-    
-    return {"escrow_address": escrow_address}
 
-# Admin endpoints for project approval
-@router.post("/{project_id}/approve")
-async def approve_project(
+@router.get("/{project_id}/stats")
+async def get_project_stats(
     project_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Approve a project (admin only)
+    Get project statistics (all authenticated users)
     """
-    if current_user.user_type != UserType.ADMIN:
+    try:
+        stats = await project_service.get_project_stats(db=db, project_id=project_id)
+        return stats
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admin users can approve projects"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get project stats: {str(e)}"
         )
-    
-    project = await project_service.get_project(db, project_id)
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found"
-        )
-    
-    project.status = ProjectStatus.ACTIVE
-    project.updated_at = datetime.utcnow()
-    db.commit()
-    
-    return {"message": "Project approved successfully"}
-
-@router.post("/{project_id}/reject")
-async def reject_project(
-    project_id: str,
-    reason: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Reject a project (admin only)
-    """
-    if current_user.user_type != UserType.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admin users can reject projects"
-        )
-    
-    project = await project_service.get_project(db, project_id)
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found"
-        )
-    
-    project.status = ProjectStatus.REJECTED
-    project.updated_at = datetime.utcnow()
-    db.commit()
-    
-    return {"message": "Project rejected", "reason": reason} 

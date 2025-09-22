@@ -28,9 +28,8 @@ class Project(Base):
     symbol = Column(String(10), nullable=False)
     description = Column(Text, nullable=False)
     category = Column(String(100), nullable=False)
-    initial_supply = Column(BigInteger, nullable=False)  # Changed from total_supply
+    initial_supply = Column(BigInteger, nullable=False)
     current_raised = Column(Numeric(15, 2), default=0)
-    end_date = Column(DateTime, nullable=False)
     risk_level = Column(Enum(RiskLevel), nullable=False)
     status = Column(Enum(ProjectStatus), default=ProjectStatus.PENDING)
     
@@ -42,20 +41,20 @@ class Project(Base):
     # Business admin wallet
     business_admin_wallet = Column(String, nullable=True)  # Business admin wallet address
     
-    # File URLs
-    image_url = Column(String(500))
-    business_plan_url = Column(String(500))
-    whitepaper_url = Column(String(500))
-    
-    # Blockchain details - Updated for 3 contracts
-    token_contract_address = Column(String)  # FundraisingToken contract
-    ieo_contract_address = Column(String)    # IEO contract
-    reward_tracking_contract_address = Column(String)  # RewardTracking contract
+    # Blockchain contract addresses
+    token_contract_address = Column(String, nullable=True)
+    ieo_contract_address = Column(String, nullable=True)
+    reward_tracking_contract_address = Column(String, nullable=True)
     
     # Deployment transaction hashes
-    token_deployment_tx = Column(String)  # Token deployment transaction hash
-    ieo_deployment_tx = Column(String)    # IEO deployment transaction hash
-    reward_tracking_deployment_tx = Column(String)  # RewardTracking deployment transaction hash
+    token_deployment_tx = Column(String, nullable=True)
+    ieo_deployment_tx = Column(String, nullable=True)
+    reward_tracking_deployment_tx = Column(String, nullable=True)
+    
+    # Optional URLs
+    image_url = Column(String(500), nullable=True)
+    business_plan_url = Column(String(500), nullable=True)
+    whitepaper_url = Column(String(500), nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
