@@ -1,0 +1,86 @@
+{
+  "abi": [
+    {
+      "inputs": [],
+      "name": "MOCK_DECIMALS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MOCK_PRICE",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getMockDecimals",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getMockPrice",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "getPrice",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "price",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "decimals",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "timestamp",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561000f575f80fd5b506101258061001d5f395ff3fe6080604052348015600e575f80fd5b5060043610604e575f3560e01c80630955172c14605257806341976e091460685780636e9948411460a0578063761283431460ae578063ff165f441460bd575b5f80fd5b60125b6040519081526020015b60405180910390f35b6086607336600460c4565b5068056bc75e2d63100000906012904290565b60408051938452602084019290925290820152606001605f565b68056bc75e2d631000006055565b605568056bc75e2d6310000081565b6055601281565b5f6020828403121560d3575f80fd5b81356001600160a01b038116811460e8575f80fd5b939250505056fea2646970667358221220cf4ee1352aa4e0de485ade059856e0a9aff8b591e9998f8c9bfc607754917b6664736f6c63430008180033"
+}
