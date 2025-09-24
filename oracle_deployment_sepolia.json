@@ -1,0 +1,8 @@
+{
+  "contract_address": "0x38A52baa06526a99324e20f9DB41C8D512EDf488",
+  "transaction_hash": "0xb8ffe6d366f71199a5a1c441ad238d984af0bcb702f0a0f6375de440bac1f469",
+  "block_number": 9256020,
+  "gas_used": 116763,
+  "network": "sepolia",
+  "deployer_address": "0x15e20DB2c89C38528bd7516F8d6479c5Da8109b4"
+}

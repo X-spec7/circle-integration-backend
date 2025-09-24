@@ -32,7 +32,7 @@ run:
 # Run in development mode with auto-reload
 dev:
 	@echo "Starting FastAPI application in development mode on port 8000..."
-	. $(VENV) && python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	. $(VENV) && python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --log-level info
 
 # Run tests
 test:

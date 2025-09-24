@@ -573,7 +573,7 @@ class BusinessAdminService:
                 detail=f"Failed to remove from whitelist: {str(e)}"
             )
     
-    async def get_whitelist(
+    async def get_whitelist_paginated(
         self,
         db: Session,
         project_id: str,
@@ -597,7 +597,7 @@ class BusinessAdminService:
             
             # Get whitelist from blockchain
             try:
-                whitelist_data = await self.blockchain_service.get_whitelist(
+                whitelist_data = await self.blockchain_service.get_whitelist_paginated(
                     token_contract_address=project.token_contract_address,
                     page=page,
                     limit=limit

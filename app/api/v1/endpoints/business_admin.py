@@ -147,7 +147,7 @@ async def get_whitelist(
 ):
     """Get whitelisted users for the project"""
     await verify_business_admin_access(project_id, current_user, db)
-    return await business_admin_service.get_whitelist(db, project_id)
+    return await business_admin_service.get_whitelist_paginated(db, project_id)
 
 @router.delete("/projects/{project_id}/whitelist/{user_address}")
 async def remove_from_whitelist(

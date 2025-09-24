@@ -34,7 +34,7 @@ class AdminUserResponse(BaseModel):
     user_type: str
     is_active: bool
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -65,7 +65,7 @@ class AdminProjectResponse(BaseModel):
     ieo_contract_address: Optional[str] = None
     reward_tracking_contract_address: Optional[str] = None
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

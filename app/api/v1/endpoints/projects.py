@@ -66,7 +66,7 @@ async def get_projects(
     Get all projects with optional filtering (all authenticated users)
     """
     try:
-        projects = await project_service.get_project_by_ids(
+        projects = await project_service.get_projects(
             db=db,
             status=project_status,
             category=category,

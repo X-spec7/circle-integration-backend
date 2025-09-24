@@ -11,6 +11,7 @@ from compiled_contracts.contract_constants import (
     IEO_ABI,
     IEO_BYTECODE,
     REWARDTRACKING_ABI,
+    MOCKPRICEORACLE_ABI,
     REWARDTRACKING_BYTECODE
 )
 
@@ -285,7 +286,6 @@ class BlockchainService:
             logger.info(f"🚀 Deploying RewardTracking contract...")
             logger.info(f"📋 Contract details: token={token_address}, ieo_contract={ieo_contract_address}")
             
-            # Check if contract is compiled
             if not REWARDTRACKING_BYTECODE or REWARDTRACKING_BYTECODE == "0x":
                 raise Exception("RewardTracking contract not compiled")
             
@@ -575,6 +575,140 @@ class BlockchainService:
             
         except Exception as e:
             logger.error(f"❌ Failed to set oracle address: {str(e)}")
+            raise
+
+
+    async def get_ieo_status(self, ieo_contract_address: str) -> Dict[str, Any]:
+        """Get IEO contract status"""
+        try:
+            logger.info(f"📊 Getting IEO status for contract: {ieo_contract_address}")
+            
+            # Create IEO contract instance
+            ieo_contract = self.w3.eth.contract(
+                address=ieo_contract_address,
+                abi=IEO_ABI
+            )
+            
+            # Get IEO status information
+            try:
+                is_active = ieo_contract.functions.isActive().call()
+            except:
+                is_active = False
+            
+            try:
+                total_raised = ieo_contract.functions.totalRaised().call()
+            except:
+                total_raised = 0
+            
+            try:
+                min_investment = ieo_contract.functions.minInvestment().call()
+            except:
+                min_investment = 0
+            
+            try:
+                max_investment = ieo_contract.functions.maxInvestment().call()
+            except:
+                max_investment = 0
+            
+            try:
+                delay_days = ieo_contract.functions.delayDays().call()
+            except:
+                delay_days = 0
+            
+            status_info = {
+                'is_active': is_active,
+                'total_raised': total_raised,
+                'min_investment': min_investment,
+                'max_investment': max_investment,
+                'delay_days': delay_days,
+                'contract_address': ieo_contract_address
+            }
+            
+            logger.info(f"✅ IEO status retrieved: {status_info}")
+            return status_info
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get IEO status: {str(e)}")
+            raise
+
+    async def get_whitelist(self, token_contract_address: str, address: str) -> bool:
+        """Check if an address is whitelisted"""
+        try:
+            logger.info(f"🔍 Checking whitelist status for {address} in token {token_contract_address}")
+            
+            # Create token contract instance
+            token_contract = self.w3.eth.contract(
+                address=token_contract_address,
+                abi=FUNDRAISINGTOKEN_ABI
+            )
+            
+            # Check whitelist status
+            is_whitelisted = token_contract.functions.whitelist(address).call()
+            
+            logger.info(f"✅ Whitelist status for {address}: {is_whitelisted}")
+            return is_whitelisted
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to check whitelist: {str(e)}")
+            raise
+
+    async def get_token_price(self, oracle_contract_address: str, token_address: str) -> Dict[str, Any]:
+        """Get token price from oracle"""
+        try:
+            logger.info(f"💰 Getting token price from oracle {oracle_contract_address} for token {token_address}")
+            
+            # Create oracle contract instance
+            oracle_contract = self.w3.eth.contract(
+                address=oracle_contract_address,
+                abi=MOCKPRICEORACLE_ABI
+            )
+            
+            # Call the oracle contract
+            price, decimals, timestamp = oracle_contract.functions.getPrice(token_address).call()
+            
+            price_data = {
+                'price': price,
+                'decimals': decimals,
+                'timestamp': timestamp
+            }
+            
+            logger.info(f"✅ Token price retrieved: {price_data}")
+            return price_data
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get token price: {str(e)}")
+            raise
+
+# Create service instance
+
+    async def get_whitelist_paginated(self, token_contract_address: str, page: int = 1, limit: int = 100) -> Dict[str, Any]:
+        """Get paginated whitelist for a token contract"""
+        try:
+            logger.info(f"📋 Getting whitelist for token {token_contract_address} (page {page}, limit {limit})")
+            
+            # Create token contract instance
+            token_contract = self.w3.eth.contract(
+                address=token_contract_address,
+                abi=FUNDRAISINGTOKEN_ABI
+            )
+            
+            # Note: The current FundraisingToken contract doesn't have a method to get all whitelisted addresses
+            # This is a limitation of the current contract design
+            # For now, we'll return an empty list with a note
+            
+            logger.warning("⚠️  Contract doesn't support getting all whitelisted addresses")
+            
+            return {
+                'addresses': [],
+                'total_count': 0,
+                'page': page,
+                'limit': limit,
+                'total_pages': 0,
+                'note': 'Contract does not support listing all whitelisted addresses'
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get whitelist: {str(e)}")
             raise
 
 # Create service instance
