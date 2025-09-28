@@ -46,8 +46,7 @@ class AdminService:
                 query = query.filter(User.status == filters.status)
             if filters.is_active is not None:
                 query = query.filter(User.is_active == filters.is_active)
-            if filters.is_verified is not None:
-                query = query.filter(User.is_verified == filters.is_verified)
+
             if filters.search:
                 search_term = f"%{filters.search}%"
                 query = query.filter(
@@ -58,10 +57,6 @@ class AdminService:
                         User.company.ilike(search_term)
                     )
                 )
-            if filters.created_from:
-                query = query.filter(User.created_at >= filters.created_from)
-            if filters.created_to:
-                query = query.filter(User.created_at <= filters.created_to)
             
             # Get total count
             total = query.count()
@@ -174,10 +169,6 @@ class AdminService:
                 user.status = update_data.status
             if update_data.is_active is not None:
                 user.is_active = update_data.is_active
-            if update_data.is_verified is not None:
-                user.is_verified = update_data.is_verified
-            if update_data.company is not None:
-                user.company = update_data.company
             
             user.updated_at = datetime.utcnow()
             db.commit()
@@ -224,8 +215,8 @@ class AdminService:
                 query = query.filter(Project.risk_level == filters.risk_level)
             if filters.category:
                 query = query.filter(Project.category == filters.category)
-            if filters.owner_id:
-                query = query.filter(Project.owner_id == filters.owner_id)
+            # if filters.owner_id:
+            #     query = query.filter(Project.owner_id == filters.owner_id)
             if filters.search:
                 search_term = f"%{filters.search}%"
                 query = query.filter(
@@ -235,14 +226,14 @@ class AdminService:
                         Project.description.ilike(search_term)
                     )
                 )
-            if filters.created_from:
-                query = query.filter(Project.created_at >= filters.created_from)
-            if filters.created_to:
-                query = query.filter(Project.created_at <= filters.created_to)
-            if filters.raised_min:
-                query = query.filter(Project.current_raised >= filters.raised_min)
-            if filters.raised_max:
-                query = query.filter(Project.current_raised <= filters.raised_max)
+            # if filters.created_from:
+            #     query = query.filter(Project.created_at >= filters.created_from)
+            # if filters.created_to:
+            #     query = query.filter(Project.created_at <= filters.created_to)
+            # if filters.raised_min:
+            #     query = query.filter(Project.current_raised >= filters.raised_min)
+            # if filters.raised_max:
+            #     query = query.filter(Project.current_raised <= filters.raised_max)
             
             # Get total count
             total = query.count()
@@ -518,7 +509,7 @@ class AdminService:
             total_investments = db.query(Investment).count()
             
             # Recent users (last 10)
-            recent_users_query = db.query(User).order_by(desc(User.created_at)).limit(10)
+            recent_users_query = db.query(User).filter(User.user_type != UserType.ADMIN).order_by(desc(User.created_at)).limit(10)
             recent_users = []
             for user in recent_users_query.all():
                 project_count = db.query(Project).filter(Project.owner_id == user.id).count()

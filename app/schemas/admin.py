@@ -31,10 +31,18 @@ class WhitelistResponse(BaseModel):
 class AdminUserResponse(BaseModel):
     id: str
     email: str
+    username: str
+    name: str
     user_type: str
+    company: Optional[str] = None
+    status: str
     is_active: bool
+    is_verified: bool
+    wallet_address: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+    project_count: int
+    investment_count: int
 
     class Config:
         from_attributes = True
@@ -42,30 +50,46 @@ class AdminUserResponse(BaseModel):
 class AdminUserUpdate(BaseModel):
     is_active: Optional[bool] = None
     user_type: Optional[str] = None
+    status: Optional[str] = None
 
 class AdminUserListResponse(BaseModel):
-    users: List[AdminUserResponse]
+    items: List[AdminUserResponse]
     total: int
     page: int
-    per_page: int
+    limit: int
+    total_pages: int
 
 class AdminProjectResponse(BaseModel):
     id: str
+    owner_id: str
+    owner_name: str
+    owner_email: str
+    owner_company: Optional[str] = None
     name: str
     symbol: str
     description: str
     category: str
-    status: str
     initial_supply: int
+    current_raised: int
+    risk_level: str
+    status: str
+    image_url: Optional[str] = None
+    business_plan_url: Optional[str] = None
+    whitepaper_url: Optional[str] = None
+    delay_days: int
     min_investment: int
     max_investment: int
-    delay_days: int
     business_admin_wallet: str
     token_contract_address: Optional[str] = None
     ieo_contract_address: Optional[str] = None
     reward_tracking_contract_address: Optional[str] = None
+    token_deployment_tx: Optional[str] = None
+    ieo_deployment_tx: Optional[str] = None
+    reward_tracking_deployment_tx: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+    investment_count: int
+    total_investors: int
 
     class Config:
         from_attributes = True
@@ -73,19 +97,29 @@ class AdminProjectResponse(BaseModel):
 class AdminProjectUpdate(BaseModel):
     status: Optional[str] = None
     business_admin_wallet: Optional[str] = None
+    risk_level: Optional[str] = None
+    category: Optional[str] = None
 
 class AdminProjectListResponse(BaseModel):
-    projects: List[AdminProjectResponse]
+    items: List[AdminProjectResponse]
     total: int
     page: int
-    per_page: int
+    limit: int
+    total_pages: int
 
 class AdminDashboardStats(BaseModel):
     total_users: int
+    total_smes: int
+    total_investors: int
     total_projects: int
     active_projects: int
+    pending_projects: int
+    completed_projects: int
+    rejected_projects: int
+    total_raised: int
     total_investments: int
-    total_volume: int
+    recent_users: List[AdminUserResponse]
+    recent_projects: List[AdminProjectResponse]
 
 class BusinessAdminUpdate(BaseModel):
     business_admin_wallet: str
@@ -99,21 +133,23 @@ class BusinessAdminUpdateResponse(BaseModel):
 
 class AdminUserFilters(BaseModel):
     user_type: Optional[str] = None
+    status: Optional[str] = None
     is_active: Optional[bool] = None
     search: Optional[str] = None
 
 class AdminProjectFilters(BaseModel):
     status: Optional[str] = None
-    category: Optional[str] = None
     search: Optional[str] = None
+    risk_level: Optional[str] = None
+    category: Optional[str] = None
 
 class AdminActionLog(BaseModel):
     id: str
     admin_id: str
-    action_type: str
-    target_type: str  # "user", "project", "investment"
+    action: str
+    target_type: str
     target_id: str
-    details: dict
+    details: Optional[str] = None
     created_at: datetime
 
     class Config:
