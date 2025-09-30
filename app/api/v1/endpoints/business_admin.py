@@ -23,7 +23,7 @@ router = APIRouter()
 # Ensure user is business admin
 async def get_business_admin_user(current_user: User = Depends(get_current_user)) -> User:
     """Ensure current user is a business admin"""
-    if current_user.user_type != UserType.BUSINESS_ADMIN:
+    if current_user.user_type != UserType.SME:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only business admins can access this endpoint"

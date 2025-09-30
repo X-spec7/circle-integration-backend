@@ -54,7 +54,6 @@ async def create_project(
 
 @router.get("/", response_model=List[ProjectResponse])
 async def get_projects(
-    project_status: Optional[str] = None,
     category: Optional[str] = None,
     risk_level: Optional[str] = None,
     skip: int = 0,
@@ -68,7 +67,6 @@ async def get_projects(
     try:
         projects = await project_service.get_projects(
             db=db,
-            status=project_status,
             category=category,
             risk_level=risk_level,
             skip=skip,

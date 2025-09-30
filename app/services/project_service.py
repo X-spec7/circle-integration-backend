@@ -148,7 +148,6 @@ class ProjectService:
     async def get_projects(
         self,
         db: Session,
-        status: Optional[str] = None,
         category: Optional[str] = None,
         risk_level: Optional[str] = None,
         skip: int = 0,
@@ -157,9 +156,9 @@ class ProjectService:
         """Get projects with optional filtering"""
         try:
             query = db.query(Project)
-            
-            if status:
-                query = query.filter(Project.status == status)
+
+            query = query.filter(Project.status == "active")
+
             if category:
                 query = query.filter(Project.category == category)
             if risk_level:
