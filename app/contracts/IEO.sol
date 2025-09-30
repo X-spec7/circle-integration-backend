@@ -102,41 +102,41 @@ contract IEO is Ownable, IIEO {
     }
 
     constructor(
-        address _tokenAddress,
-        address _admin,
-        address _businessAdmin,
-        uint256 _delayDays,
-        uint256 _minInvestment,
-        uint256 _maxInvestment
+        address tokenAddress_,
+        address admin_,
+        address businessAdmin_,
+        uint256 delayDays_,
+        uint256 minInvestment_,
+        uint256 maxInvestment_
     ) Ownable(msg.sender) {
-        if (_tokenAddress == address(0)) {
+        if (tokenAddress_ == address(0)) {
             revert FundraisingErrors.ZeroAddress();
         }
-        if (_admin == address(0)) {
+        if (admin_ == address(0)) {
             revert FundraisingErrors.ZeroAddress();
         }
-        if (_businessAdmin == address(0)) {
+        if (businessAdmin_ == address(0)) {
             revert FundraisingErrors.ZeroAddress();
         }
-        if (_delayDays == 0) {
+        if (delayDays_ == 0) {
             revert FundraisingErrors.InvalidDelayDays();
         }
-        if (_minInvestment == 0) {
+        if (minInvestment_ == 0) {
             revert FundraisingErrors.InvalidMinInvestment();
         }
-        if (_maxInvestment <= _minInvestment) {
+        if (maxInvestment_ <= minInvestment_) {
             revert FundraisingErrors.InvalidInvestmentRange();
         }
         
-        tokenAddress = _tokenAddress;
-        admin = _admin;
-        businessAdmin = _businessAdmin;
+        tokenAddress = tokenAddress_;
+        admin = admin_;
+        businessAdmin = businessAdmin_;
         
-        CLAIM_DELAY = uint32(_delayDays * 1 days);
-        REFUND_PERIOD = uint32(_delayDays * 1 days);
-        MIN_INVESTMENT = uint128(_minInvestment);
-        MAX_INVESTMENT = uint128(_maxInvestment);
-        WITHDRAWAL_DELAY = uint32(_delayDays * 1 days);
+        CLAIM_DELAY = uint32(delayDays_ * 1 days);
+        REFUND_PERIOD = uint32(delayDays_ * 1 days);
+        MIN_INVESTMENT = uint128(minInvestment_);
+        MAX_INVESTMENT = uint128(maxInvestment_);
+        WITHDRAWAL_DELAY = uint32(delayDays_ * 1 days);
         
         rewardTrackingAddress = address(0);
         
