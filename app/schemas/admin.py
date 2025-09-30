@@ -12,7 +12,7 @@ class AdminUserResponse(BaseModel):
     company: Optional[str] = None
     status: str
     is_active: bool
-    is_verified: bool
+    kyc_verified: bool
     wallet_address: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None

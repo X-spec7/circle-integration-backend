@@ -18,11 +18,17 @@ depends_on = None
 
 def upgrade():
     """Remove end_date column from projects table"""
-    # Remove the end_date column
-    op.drop_column('projects', 'end_date')
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [c['name'] for c in inspector.get_columns('projects')]
+    if 'end_date' in columns:
+        op.drop_column('projects', 'end_date')
 
 
 def downgrade():
     """Add end_date column back to projects table"""
-    # Add the end_date column back
-    op.add_column('projects', sa.Column('end_date', sa.DateTime(), nullable=True))
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [c['name'] for c in inspector.get_columns('projects')]
+    if 'end_date' not in columns:
+        op.add_column('projects', sa.Column('end_date', sa.DateTime(), nullable=True))

@@ -17,10 +17,18 @@ depends_on = None
 
 
 def upgrade():
-    # Add business_admin_wallet column to projects table
-    op.add_column('projects', sa.Column('business_admin_wallet', sa.String(), nullable=True))
+    # Add business_admin_wallet column to projects table if missing
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [c['name'] for c in inspector.get_columns('projects')]
+    if 'business_admin_wallet' not in columns:
+        op.add_column('projects', sa.Column('business_admin_wallet', sa.String(), nullable=True))
 
 
 def downgrade():
-    # Remove business_admin_wallet column
-    op.drop_column('projects', 'business_admin_wallet')
+    # Remove business_admin_wallet column if present
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [c['name'] for c in inspector.get_columns('projects')]
+    if 'business_admin_wallet' in columns:
+        op.drop_column('projects', 'business_admin_wallet')

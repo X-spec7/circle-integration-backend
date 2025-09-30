@@ -46,7 +46,6 @@ async def get_users(
     user_type: Optional[UserType] = Query(None, description="Filter by user type"),
     status: Optional[str] = Query(None, description="Filter by status"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
-    is_verified: Optional[bool] = Query(None, description="Filter by verified status"),
     search: Optional[str] = Query(None, description="Search in name, email, username, company"),
     created_from: Optional[datetime] = Query(None, description="Filter by creation date from"),
     created_to: Optional[datetime] = Query(None, description="Filter by creation date to"),
@@ -58,7 +57,6 @@ async def get_users(
         user_type=user_type,
         status=status,
         is_active=is_active,
-        is_verified=is_verified,
         search=search,
         created_from=created_from,
         created_to=created_to

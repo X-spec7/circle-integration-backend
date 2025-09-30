@@ -17,30 +17,47 @@ depends_on = None
 
 
 def upgrade():
-    # Remove old fields
-    op.drop_column('projects', 'target_amount')
-    op.drop_column('projects', 'price_per_token')
-    op.drop_column('projects', 'total_supply')
-    op.drop_column('projects', 'escrow_contract_address')
-    op.drop_column('projects', 'escrow_deployment_tx')
-    
-    # Add new fields
-    op.add_column('projects', sa.Column('initial_supply', sa.BigInteger(), nullable=False, server_default='1000000'))
-    op.add_column('projects', sa.Column('delay_days', sa.Integer(), nullable=False, server_default='7'))
-    op.add_column('projects', sa.Column('min_investment', sa.Integer(), nullable=False, server_default='100'))
-    op.add_column('projects', sa.Column('max_investment', sa.Integer(), nullable=False, server_default='1000000'))
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [c['name'] for c in inspector.get_columns('projects')]
+
+    # Remove old fields if they exist
+    for col in ['target_amount', 'price_per_token', 'total_supply', 'escrow_contract_address', 'escrow_deployment_tx']:
+        if col in columns:
+            op.drop_column('projects', col)
+
+    # Recompute columns after drops
+    columns = [c['name'] for c in inspector.get_columns('projects')]
+
+    # Add new fields if missing
+    if 'initial_supply' not in columns:
+        op.add_column('projects', sa.Column('initial_supply', sa.BigInteger(), nullable=False, server_default='1000000'))
+    if 'delay_days' not in columns:
+        op.add_column('projects', sa.Column('delay_days', sa.Integer(), nullable=False, server_default='7'))
+    if 'min_investment' not in columns:
+        op.add_column('projects', sa.Column('min_investment', sa.Integer(), nullable=False, server_default='100'))
+    if 'max_investment' not in columns:
+        op.add_column('projects', sa.Column('max_investment', sa.Integer(), nullable=False, server_default='1000000'))
 
 
 def downgrade():
-    # Add back old fields
-    op.add_column('projects', sa.Column('target_amount', sa.Numeric(15, 2), nullable=True))
-    op.add_column('projects', sa.Column('price_per_token', sa.Numeric(10, 4), nullable=True))
-    op.add_column('projects', sa.Column('total_supply', sa.BigInteger(), nullable=True))
-    op.add_column('projects', sa.Column('escrow_contract_address', sa.String(), nullable=True))
-    op.add_column('projects', sa.Column('escrow_deployment_tx', sa.String(), nullable=True))
-    
-    # Remove new fields
-    op.drop_column('projects', 'max_investment')
-    op.drop_column('projects', 'min_investment')
-    op.drop_column('projects', 'delay_days')
-    op.drop_column('projects', 'initial_supply')
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [c['name'] for c in inspector.get_columns('projects')]
+
+    # Add back old fields if missing
+    if 'target_amount' not in columns:
+        op.add_column('projects', sa.Column('target_amount', sa.Numeric(15, 2), nullable=True))
+    if 'price_per_token' not in columns:
+        op.add_column('projects', sa.Column('price_per_token', sa.Numeric(10, 4), nullable=True))
+    if 'total_supply' not in columns:
+        op.add_column('projects', sa.Column('total_supply', sa.BigInteger(), nullable=True))
+    if 'escrow_contract_address' not in columns:
+        op.add_column('projects', sa.Column('escrow_contract_address', sa.String(), nullable=True))
+    if 'escrow_deployment_tx' not in columns:
+        op.add_column('projects', sa.Column('escrow_deployment_tx', sa.String(), nullable=True))
+
+    # Remove new fields if present
+    for col in ['max_investment', 'min_investment', 'delay_days', 'initial_supply']:
+        if col in columns:
+            op.drop_column('projects', col)

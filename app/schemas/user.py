@@ -27,12 +27,17 @@ class UserUpdate(BaseModel):
     company: Optional[str] = Field(None, max_length=255)
     wallet_address: Optional[str] = Field(None, description="Wallet address for crypto payments")
 
-class User(UserBase):
+class User(BaseModel):
     """Schema for user response"""
     id: str
     status: UserStatus
     is_active: bool
-    is_verified: bool
+    kyc_verified: bool
+    email: EmailStr
+    username: str
+    name: str
+    user_type: UserType
+    company: Optional[str] = None
     wallet_address: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -50,7 +55,7 @@ class UserProfile(BaseModel):
     company: Optional[str] = None
     status: UserStatus
     is_active: bool
-    is_verified: bool
+    kyc_verified: bool
     wallet_address: Optional[str] = None
     created_at: datetime
 

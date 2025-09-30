@@ -17,18 +17,34 @@ depends_on = None
 
 
 def upgrade():
-    # Add new contract address fields
-    op.add_column('projects', sa.Column('ieo_contract_address', sa.String(), nullable=True))
-    op.add_column('projects', sa.Column('reward_tracking_contract_address', sa.String(), nullable=True))
+    # Add new contract address fields (guard if already present)
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [c['name'] for c in inspector.get_columns('projects')]
+
+    if 'ieo_contract_address' not in columns:
+        op.add_column('projects', sa.Column('ieo_contract_address', sa.String(), nullable=True))
+    if 'reward_tracking_contract_address' not in columns:
+        op.add_column('projects', sa.Column('reward_tracking_contract_address', sa.String(), nullable=True))
     
     # Add new deployment transaction hash fields
-    op.add_column('projects', sa.Column('ieo_deployment_tx', sa.String(), nullable=True))
-    op.add_column('projects', sa.Column('reward_tracking_deployment_tx', sa.String(), nullable=True))
+    if 'ieo_deployment_tx' not in columns:
+        op.add_column('projects', sa.Column('ieo_deployment_tx', sa.String(), nullable=True))
+    if 'reward_tracking_deployment_tx' not in columns:
+        op.add_column('projects', sa.Column('reward_tracking_deployment_tx', sa.String(), nullable=True))
 
 
 def downgrade():
-    # Remove the added columns
-    op.drop_column('projects', 'reward_tracking_deployment_tx')
-    op.drop_column('projects', 'ieo_deployment_tx')
-    op.drop_column('projects', 'reward_tracking_contract_address')
-    op.drop_column('projects', 'ieo_contract_address')
+    # Remove the added columns (drop if exist)
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [c['name'] for c in inspector.get_columns('projects')]
+
+    if 'reward_tracking_deployment_tx' in columns:
+        op.drop_column('projects', 'reward_tracking_deployment_tx')
+    if 'ieo_deployment_tx' in columns:
+        op.drop_column('projects', 'ieo_deployment_tx')
+    if 'reward_tracking_contract_address' in columns:
+        op.drop_column('projects', 'reward_tracking_contract_address')
+    if 'ieo_contract_address' in columns:
+        op.drop_column('projects', 'ieo_contract_address')

@@ -6,8 +6,10 @@ from app.api.deps import get_current_user
 from app.models.user import User, UserType
 from app.models.project import Project, ProjectStatus
 from app.models.investment import Investment, InvestmentStatus
+from app.models.whitelist_request import WhitelistRequest, WhitelistRequestStatus
 from app.schemas.investment import InvestmentCreate, InvestmentResponse, InvestmentDetail
 from app.schemas.project import ProjectResponse
+from app.schemas.business_admin import InvestorWhitelistApplyRequest, InvestorWhitelistApplyResponse
 from app.services.investment_service import InvestmentService
 from app.services.blockchain_service import blockchain_service
 import logging
@@ -49,6 +51,11 @@ async def get_available_projects(
         
         projects = query.all()
         
+        # Annotate whitelist flag
+        for p in projects:
+            count = db.query(WhitelistRequest).filter(WhitelistRequest.project_id == p.id, WhitelistRequest.status == WhitelistRequestStatus.PENDING).count()
+            setattr(p, "has_whitelist_request", count > 0)
+        
         logger.info(f"✅ Found {len(projects)} projects for investor")
         return projects
         
@@ -58,6 +65,49 @@ async def get_available_projects(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve projects"
         )
+
+@router.post("/whitelist/apply", response_model=InvestorWhitelistApplyResponse)
+async def apply_whitelist(
+    data: InvestorWhitelistApplyRequest,
+    current_user: User = Depends(get_investor_user),
+    db: Session = Depends(get_db)
+):
+    """Investor applies to be whitelisted for a project with one or more addresses (requires KYC-verified)."""
+    try:
+        # Enforce KYC verification (support legacy is_verified)
+        if not getattr(current_user, "kyc_verified", getattr(current_user, "is_verified", False)):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="KYC verification required")
+        
+        project = db.query(Project).filter(Project.id == data.project_id).first()
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+        
+        addresses_clean = [a.strip() for a in data.addresses if a and a.strip()]
+        if not addresses_clean:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No valid addresses provided")
+        
+        req = WhitelistRequest(
+            project_id=project.id,
+            investor_id=current_user.id,
+            addresses=",".join(addresses_clean),
+            status=WhitelistRequestStatus.PENDING
+        )
+        db.add(req)
+        db.commit()
+        db.refresh(req)
+        
+        return InvestorWhitelistApplyResponse(
+            request_id=req.id,
+            project_id=req.project_id,
+            addresses=addresses_clean,
+            status=req.status,
+            created_at=req.created_at
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error applying for whitelist: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to apply for whitelist")
 
 @router.get("/projects/{project_id}", response_model=ProjectResponse)
 async def get_project_details(

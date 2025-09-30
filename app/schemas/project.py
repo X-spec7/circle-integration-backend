@@ -110,6 +110,9 @@ class ProjectResponse(ProjectBase):
     ieo_deployment_tx: Optional[str] = None
     reward_tracking_deployment_tx: Optional[str] = None
     
+    # Whitelist requests flag
+    has_whitelist_request: Optional[bool] = False
+    
     created_at: datetime
     updated_at: Optional[datetime] = None
 

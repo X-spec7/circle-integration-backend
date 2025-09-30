@@ -131,3 +131,26 @@ class BusinessAdminProjectListResponse(BaseModel):
     page: int
     limit: int
     total_pages: int
+
+# New schemas for whitelist requests flow
+class InvestorWhitelistApplyRequest(BaseModel):
+    project_id: str
+    addresses: List[str] = Field(..., min_items=1, max_items=20)
+
+class InvestorWhitelistApplyResponse(BaseModel):
+    request_id: str
+    project_id: str
+    addresses: List[str]
+    status: str
+    created_at: datetime
+
+class WhitelistRequestItem(BaseModel):
+    id: str
+    investor_id: str
+    addresses: List[str]
+    status: str
+    created_at: datetime
+
+class WhitelistRequestListResponse(BaseModel):
+    items: List[WhitelistRequestItem]
+    total: int
