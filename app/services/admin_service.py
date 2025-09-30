@@ -6,7 +6,7 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func, desc
 from fastapi import HTTPException, status
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.user import User, UserType, UserStatus
 from app.models.project import Project, ProjectStatus
@@ -170,7 +170,7 @@ class AdminService:
             if update_data.is_active is not None:
                 user.is_active = update_data.is_active
             
-            user.updated_at = datetime.utcnow()
+            user.updated_at = datetime.now(timezone.utc)
             db.commit()
             db.refresh(user)
             
@@ -234,6 +234,8 @@ class AdminService:
             #     query = query.filter(Project.current_raised >= filters.raised_min)
             # if filters.raised_max:
             #     query = query.filter(Project.current_raised <= filters.raised_max)
+            
+            query = query.order_by(desc(Project.created_at))
             
             # Get total count
             total = query.count()
@@ -391,7 +393,7 @@ class AdminService:
             if update_data.business_admin_wallet is not None:
                 project.business_admin_wallet = update_data.business_admin_wallet
             
-            project.updated_at = datetime.utcnow()
+            project.updated_at = datetime.now(timezone.utc)
             db.commit()
             db.refresh(project)
             
@@ -438,20 +440,31 @@ class AdminService:
                     detail="Project does not have IEO contract deployed"
                 )
             
-            # Get current business admin from contract
-            # This would require a blockchain call to get the current admin
-            # For now, we'll assume we have the current admin stored somewhere
-            
-            # Update business admin in IEO contract
-            # This would require calling the setBusinessAdmin function on the IEO contract
-            # For now, we'll simulate the transaction
-            
-            transaction_hash = "0x" + "1" * 64  # Simulated transaction hash
+            # Update business admin on-chain (Token and IEO)
+            try:
+                token_tx_hash = None
+                if project.token_contract_address:
+                    token_tx_hash = await self.blockchain_service.set_token_business_admin(
+                        token_contract_address=project.token_contract_address,
+                        new_business_admin=update_data.business_admin_wallet
+                    )
+                ieo_tx_hash = None
+                if project.ieo_contract_address:
+                    ieo_tx_hash = await self.blockchain_service.set_ieo_business_admin(
+                        ieo_contract_address=project.ieo_contract_address,
+                        new_business_admin=update_data.business_admin_wallet
+                    )
+            except Exception as e:
+                logger.error(f"Blockchain update business admin failed: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to update business admin on-chain: {str(e)}"
+                )
             
             # Update the project record
             old_business_admin = project.business_admin_wallet
-            project.business_admin_wallet = update_data.new_business_admin_wallet
-            project.updated_at = datetime.utcnow()
+            project.business_admin_wallet = update_data.business_admin_wallet
+            project.updated_at = datetime.now(timezone.utc)
             db.commit()
             
             # Log admin action
@@ -463,17 +476,20 @@ class AdminService:
                 target_id=update_data.project_id,
                 details={
                     "old_business_admin": old_business_admin,
-                    "new_business_admin": update_data.new_business_admin_wallet,
-                    "transaction_hash": transaction_hash
+                    "new_business_admin": update_data.business_admin_wallet,
+                    "token_tx_hash": token_tx_hash,
+                    "ieo_tx_hash": ieo_tx_hash
                 }
             )
             
+            # Prefer IEO tx hash in response if present
+            tx_hash = ieo_tx_hash or token_tx_hash or ""
+            
             return BusinessAdminUpdateResponse(
                 project_id=update_data.project_id,
-                old_business_admin=old_business_admin or "0x" + "0" * 40,
-                new_business_admin=update_data.new_business_admin_wallet,
-                transaction_hash=transaction_hash,
-                success=True,
+                old_business_admin_wallet=old_business_admin or "0x" + "0" * 40,
+                new_business_admin_wallet=update_data.business_admin_wallet,
+                transaction_hash=tx_hash,
                 message="Business admin updated successfully"
             )
             

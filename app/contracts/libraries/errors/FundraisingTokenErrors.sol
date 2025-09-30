@@ -38,4 +38,6 @@ library FundraisingTokenErrors {
     
     // Reentrancy related errors
     error ReentrantCallBlocked();
+
+    error ZeroAddress();
 }

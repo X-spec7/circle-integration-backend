@@ -161,16 +161,22 @@ class BlockchainService:
         name: str, 
         symbol: str, 
         decimals: int = 18, 
-        initial_supply: int = 1000000
+        initial_supply: int = 1000000,
+        business_admin: str = None
     ) -> Tuple[str, str]:
         """Deploy FundraisingToken contract"""
         try:
             logger.info(f"🚀 Deploying FundraisingToken contract...")
             logger.info(f"📋 Contract details: name={name}, symbol={symbol}, decimals={decimals}, initial_supply={initial_supply}")
+            logger.info(f"📋 Business admin: {business_admin}")
             
             # Check if contract is compiled
             if not FUNDRAISINGTOKEN_BYTECODE or FUNDRAISINGTOKEN_BYTECODE == "0x":
                 raise Exception("FundraisingToken contract not compiled")
+            
+            # Use provided business admin or default to deployer
+            if business_admin is None:
+                business_admin = self.account.address
             
             # Get gas price and nonce
             gas_price = await self.get_gas_price_with_safety_margin()
@@ -182,18 +188,18 @@ class BlockchainService:
                 bytecode=FUNDRAISINGTOKEN_BYTECODE
             )
             
-            # Build constructor transaction
+            # Build constructor transaction with business admin parameter
             constructor_tx = contract.constructor(
-                name, symbol, decimals, initial_supply
+                name, symbol, decimals, business_admin, initial_supply
             ).build_transaction({
-                'from': self.account.address,
-                'gasPrice': gas_price,
-                'nonce': nonce
+                "from": self.account.address,
+                "gasPrice": gas_price,
+                "nonce": nonce
             })
             
             # Estimate gas
             gas_estimate = await self.get_gas_limit_with_safety_margin(constructor_tx)
-            constructor_tx['gas'] = gas_estimate
+            constructor_tx["gas"] = gas_estimate
             
             # Send transaction
             tx_hash = await self._send_transaction(constructor_tx, "FundraisingToken deployment")
@@ -210,6 +216,7 @@ class BlockchainService:
             
         except Exception as e:
             logger.error(f"❌ Failed to deploy FundraisingToken: {str(e)}")
+            raise
             raise
     
     async def deploy_ieo_contract(
@@ -339,10 +346,11 @@ class BlockchainService:
             # Step 1: Deploy FundraisingToken
             logger.info(f"📝 Step 1/3: Deploying FundraisingToken...")
             token_address, token_tx = await self.deploy_fundraising_token(
-                name=project_data['name'],
-                symbol=project_data['symbol'],
+                name=project_data["name"],
+                symbol=project_data["symbol"],
                 decimals=18,
-                initial_supply=project_data['initial_supply']
+                initial_supply=project_data["initial_supply"],
+                business_admin=project_data["business_admin_wallet"]
             )
             
             # Add delay between deployments
@@ -412,134 +420,6 @@ class BlockchainService:
             logger.error(f"❌ Failed to configure contracts: {str(e)}")
             raise
 
-    async def add_to_whitelist(self, token_contract_address: str, address: str) -> str:
-        """Add an address to the token whitelist"""
-        try:
-            logger.info(f"👤 Adding {address} to whitelist for token {token_contract_address}")
-            
-            # Create token contract instance
-            token_contract = self.w3.eth.contract(
-                address=token_contract_address,
-                abi=FUNDRAISINGTOKEN_ABI
-            )
-            
-            # Get gas price and nonce
-            gas_price = await self.get_gas_price_with_safety_margin()
-            nonce = self._get_nonce()
-            
-            # Build transaction
-            tx = token_contract.functions.addToWhitelist(address).build_transaction({
-                'from': self.account.address,
-                'gasPrice': gas_price,
-                'nonce': nonce
-            })
-            
-            # Estimate gas
-            gas_estimate = await self.get_gas_limit_with_safety_margin(tx)
-            tx['gas'] = gas_estimate
-            
-            # Send transaction
-            tx_hash = await self._send_transaction(tx, f"Add {address} to whitelist")
-            
-            logger.info(f"✅ Address {address} added to whitelist: {tx_hash}")
-            return tx_hash
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to add to whitelist: {str(e)}")
-            raise
-
-    async def remove_from_whitelist(self, token_contract_address: str, address: str) -> str:
-        """Remove an address from the token whitelist"""
-        try:
-            logger.info(f"👤 Removing {address} from whitelist for token {token_contract_address}")
-            
-            # Create token contract instance
-            token_contract = self.w3.eth.contract(
-                address=token_contract_address,
-                abi=FUNDRAISINGTOKEN_ABI
-            )
-            
-            # Get gas price and nonce
-            gas_price = await self.get_gas_price_with_safety_margin()
-            nonce = self._get_nonce()
-            
-            # Build transaction
-            tx = token_contract.functions.removeFromWhitelist(address).build_transaction({
-                'from': self.account.address,
-                'gasPrice': gas_price,
-                'nonce': nonce
-            })
-            
-            # Estimate gas
-            gas_estimate = await self.get_gas_limit_with_safety_margin(tx)
-            tx['gas'] = gas_estimate
-            
-            # Send transaction
-            tx_hash = await self._send_transaction(tx, f"Remove {address} from whitelist")
-            
-            logger.info(f"✅ Address {address} removed from whitelist: {tx_hash}")
-            return tx_hash
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to remove from whitelist: {str(e)}")
-            raise
-
-    async def batch_add_to_whitelist(self, token_contract_address: str, addresses: List[str]) -> str:
-        """Add multiple addresses to the token whitelist"""
-        try:
-            logger.info(f"👤 Batch adding {len(addresses)} addresses to whitelist for token {token_contract_address}")
-            
-            # Create token contract instance
-            token_contract = self.w3.eth.contract(
-                address=token_contract_address,
-                abi=FUNDRAISINGTOKEN_ABI
-            )
-            
-            # Get gas price and nonce
-            gas_price = await self.get_gas_price_with_safety_margin()
-            nonce = self._get_nonce()
-            
-            # Build transaction
-            tx = token_contract.functions.batchAddToWhitelist(addresses).build_transaction({
-                'from': self.account.address,
-                'gasPrice': gas_price,
-                'nonce': nonce
-            })
-            
-            # Estimate gas
-            gas_estimate = await self.get_gas_limit_with_safety_margin(tx)
-            tx['gas'] = gas_estimate
-            
-            # Send transaction
-            tx_hash = await self._send_transaction(tx, f"Batch add {len(addresses)} addresses to whitelist")
-            
-            logger.info(f"✅ {len(addresses)} addresses added to whitelist: {tx_hash}")
-            return tx_hash
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to batch add to whitelist: {str(e)}")
-            raise
-
-    async def is_whitelisted(self, token_contract_address: str, address: str) -> bool:
-        """Check if an address is whitelisted"""
-        try:
-            logger.info(f"👤 Checking whitelist status for {address} in token {token_contract_address}")
-            
-            # Create token contract instance
-            token_contract = self.w3.eth.contract(
-                address=token_contract_address,
-                abi=FUNDRAISINGTOKEN_ABI
-            )
-            
-            # Call the isWhitelisted function
-            is_whitelisted = token_contract.functions.isWhitelisted(address).call()
-            
-            logger.info(f"✅ Whitelist status for {address}: {is_whitelisted}")
-            return is_whitelisted
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to check whitelist status: {str(e)}")
-            raise
 
     async def set_oracle_address(self, ieo_contract_address: str, oracle_address: str) -> str:
         """Set oracle address for IEO contract"""
@@ -631,26 +511,6 @@ class BlockchainService:
             logger.error(f"❌ Failed to get IEO status: {str(e)}")
             raise
 
-    async def get_whitelist(self, token_contract_address: str, address: str) -> bool:
-        """Check if an address is whitelisted"""
-        try:
-            logger.info(f"🔍 Checking whitelist status for {address} in token {token_contract_address}")
-            
-            # Create token contract instance
-            token_contract = self.w3.eth.contract(
-                address=token_contract_address,
-                abi=FUNDRAISINGTOKEN_ABI
-            )
-            
-            # Check whitelist status
-            is_whitelisted = token_contract.functions.whitelist(address).call()
-            
-            logger.info(f"✅ Whitelist status for {address}: {is_whitelisted}")
-            return is_whitelisted
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to check whitelist: {str(e)}")
-            raise
 
     async def get_token_price(self, oracle_contract_address: str, token_address: str) -> Dict[str, Any]:
         """Get token price from oracle"""
@@ -679,37 +539,49 @@ class BlockchainService:
             logger.error(f"❌ Failed to get token price: {str(e)}")
             raise
 
-# Create service instance
-
-    async def get_whitelist_paginated(self, token_contract_address: str, page: int = 1, limit: int = 100) -> Dict[str, Any]:
-        """Get paginated whitelist for a token contract"""
+    # New methods: update business admin on Token and IEO contracts
+    async def set_token_business_admin(self, token_contract_address: str, new_business_admin: str) -> str:
+        """Set business admin on FundraisingToken contract"""
         try:
-            logger.info(f"📋 Getting whitelist for token {token_contract_address} (page {page}, limit {limit})")
-            
-            # Create token contract instance
-            token_contract = self.w3.eth.contract(
-                address=token_contract_address,
-                abi=FUNDRAISINGTOKEN_ABI
-            )
-            
-            # Note: The current FundraisingToken contract doesn't have a method to get all whitelisted addresses
-            # This is a limitation of the current contract design
-            # For now, we'll return an empty list with a note
-            
-            logger.warning("⚠️  Contract doesn't support getting all whitelisted addresses")
-            
-            return {
-                'addresses': [],
-                'total_count': 0,
-                'page': page,
-                'limit': limit,
-                'total_pages': 0,
-                'note': 'Contract does not support listing all whitelisted addresses'
-            }
-            
+            logger.info(f"👤 Setting token business admin to {new_business_admin} on {token_contract_address}")
+            token_contract = self.w3.eth.contract(address=token_contract_address, abi=FUNDRAISINGTOKEN_ABI)
+            gas_price = await self.get_gas_price_with_safety_margin()
+            nonce = self._get_nonce()
+            tx = token_contract.functions.setBusinessAdmin(new_business_admin).build_transaction({
+                'from': self.account.address,
+                'gasPrice': gas_price,
+                'nonce': nonce
+            })
+            gas_estimate = await self.get_gas_limit_with_safety_margin(tx)
+            tx['gas'] = gas_estimate
+            tx_hash = await self._send_transaction(tx, f"Set token business admin {new_business_admin}")
+            logger.info(f"✅ Token business admin updated: {tx_hash}")
+            return tx_hash
         except Exception as e:
-            logger.error(f"❌ Failed to get whitelist: {str(e)}")
+            logger.error(f"❌ Failed to set token business admin: {str(e)}")
+            raise
+
+    async def set_ieo_business_admin(self, ieo_contract_address: str, new_business_admin: str) -> str:
+        """Set business admin on IEO contract"""
+        try:
+            logger.info(f"👤 Setting IEO business admin to {new_business_admin} on {ieo_contract_address}")
+            ieo_contract = self.w3.eth.contract(address=ieo_contract_address, abi=IEO_ABI)
+            gas_price = await self.get_gas_price_with_safety_margin()
+            nonce = self._get_nonce()
+            tx = ieo_contract.functions.setBusinessAdmin(new_business_admin).build_transaction({
+                'from': self.account.address,
+                'gasPrice': gas_price,
+                'nonce': nonce
+            })
+            gas_estimate = await self.get_gas_limit_with_safety_margin(tx)
+            tx['gas'] = gas_estimate
+            tx_hash = await self._send_transaction(tx, f"Set IEO business admin {new_business_admin}")
+            logger.info(f"✅ IEO business admin updated: {tx_hash}")
+            return tx_hash
+        except Exception as e:
+            logger.error(f"❌ Failed to set IEO business admin: {str(e)}")
             raise
 
 # Create service instance
+
 blockchain_service = BlockchainService()

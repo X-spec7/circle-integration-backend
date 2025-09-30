@@ -108,3 +108,26 @@ class PriceValidationSettings(BaseModel):
     max_token_price: Decimal
     price_oracle_address: str
     circuit_breaker: CircuitBreakerSettings
+
+# New schemas for listing business admin projects
+class BusinessAdminProjectSummary(BaseModel):
+    id: str
+    name: str
+    symbol: str
+    status: str
+    category: Optional[str] = None
+    initial_supply: Optional[int] = None
+    current_raised: Optional[Decimal] = None
+    business_admin_wallet: Optional[str] = None
+    token_contract_address: Optional[str] = None
+    ieo_contract_address: Optional[str] = None
+    reward_tracking_contract_address: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+class BusinessAdminProjectListResponse(BaseModel):
+    items: List[BusinessAdminProjectSummary]
+    total: int
+    page: int
+    limit: int
+    total_pages: int

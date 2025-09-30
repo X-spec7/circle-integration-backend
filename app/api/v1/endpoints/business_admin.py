@@ -13,7 +13,8 @@ from app.models.project import Project
 from app.schemas.business_admin import (
     StartIEORequest, EndIEORequest, WithdrawUSDCRequest, WithdrawAllUSDCRequest,
     IEOStatusResponse, WithdrawalResponse, ProjectStatsResponse,
-    WhitelistUserRequest, WhitelistBatchRequest, WhitelistResponse
+    WhitelistUserRequest, WhitelistBatchRequest, WhitelistResponse,
+    BusinessAdminProjectListResponse
 )
 from app.services.business_admin_service import business_admin_service
 
@@ -52,6 +53,16 @@ async def verify_business_admin_access(
             detail="Only project owner or business admin can access this endpoint"
         )
     return project
+
+@router.get("/projects/mine", response_model=BusinessAdminProjectListResponse)
+async def get_my_projects(
+    current_user: User = Depends(get_business_admin_user),
+    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100)
+):
+    """Get projects where the current user is the owner or business admin wallet."""
+    return await business_admin_service.get_business_admin_projects(db, current_user, page, limit)
 
 @router.post("/projects/{project_id}/start-ieo")
 async def start_ieo(
@@ -124,9 +135,15 @@ async def whitelist_user(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Whitelist a single user for the project"""
+    """Deprecated: Whitelist is managed on-chain by business admin wallet."""
     await verify_business_admin_access(project_id, current_user, db)
-    return await business_admin_service.whitelist_user(db, project_id, whitelist_data)
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail=(
+            "Whitelist management is now handled directly on-chain by the business admin wallet via "
+            "the token contract (add/remove/batch/isWhitelisted). This endpoint has been removed."
+        )
+    )
 
 @router.post("/projects/{project_id}/whitelist/batch")
 async def whitelist_batch(
@@ -135,9 +152,15 @@ async def whitelist_batch(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Whitelist multiple users for the project"""
+    """Deprecated: Whitelist is managed on-chain by business admin wallet."""
     await verify_business_admin_access(project_id, current_user, db)
-    return await business_admin_service.whitelist_batch(db, project_id, whitelist_data)
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail=(
+            "Whitelist management is now handled directly on-chain by the business admin wallet via "
+            "the token contract (add/remove/batch/isWhitelisted). This endpoint has been removed."
+        )
+    )
 
 @router.get("/projects/{project_id}/whitelist")
 async def get_whitelist(
@@ -145,9 +168,15 @@ async def get_whitelist(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get whitelisted users for the project"""
+    """Deprecated: Whitelist is managed on-chain by business admin wallet."""
     await verify_business_admin_access(project_id, current_user, db)
-    return await business_admin_service.get_whitelist_paginated(db, project_id)
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail=(
+            "Whitelist management is now handled directly on-chain by the business admin wallet via "
+            "the token contract (add/remove/batch/isWhitelisted). This endpoint has been removed."
+        )
+    )
 
 @router.delete("/projects/{project_id}/whitelist/{user_address}")
 async def remove_from_whitelist(
@@ -156,9 +185,15 @@ async def remove_from_whitelist(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Remove user from whitelist"""
+    """Deprecated: Whitelist is managed on-chain by business admin wallet."""
     await verify_business_admin_access(project_id, current_user, db)
-    return await business_admin_service.remove_from_whitelist(db, project_id, user_address)
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail=(
+            "Whitelist management is now handled directly on-chain by the business admin wallet via "
+            "the token contract (add/remove/batch/isWhitelisted). This endpoint has been removed."
+        )
+    )
 
 @router.get("/projects")
 async def get_business_admin_projects(

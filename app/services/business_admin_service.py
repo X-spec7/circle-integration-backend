@@ -14,7 +14,8 @@ from app.models.project import Project, ProjectStatus
 from app.schemas.business_admin import (
     StartIEORequest, EndIEORequest, WithdrawUSDCRequest, WithdrawAllUSDCRequest,
     IEOStatusResponse, WithdrawalResponse, ProjectStatsResponse,
-    WhitelistUserRequest, WhitelistBatchRequest, WhitelistResponse
+    WhitelistUserRequest, WhitelistBatchRequest, WhitelistResponse,
+    BusinessAdminProjectListResponse, BusinessAdminProjectSummary
 )
 from app.services.blockchain_service import blockchain_service
 
@@ -360,272 +361,54 @@ class BusinessAdminService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to get project stats: {str(e)}"
             )
-    
-    async def add_to_whitelist(
+
+    async def get_business_admin_projects(
         self,
         db: Session,
-        project_id: str,
-        whitelist_data: WhitelistUserRequest
-    ) -> WhitelistResponse:
-        """Add user to project token whitelist"""
-        try:
-            project = db.query(Project).filter(Project.id == project_id).first()
-            if not project:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Project not found"
-                )
-            
-            if not project.token_contract_address:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Token contract not deployed"
-                )
-            
-            # Call blockchain to add to whitelist
-            try:
-                transaction_hash = await self.blockchain_service.add_to_whitelist(
-                    token_contract_address=project.token_contract_address,
-                    wallet_address=whitelist_data.wallet_address
-                )
-                
-                return WhitelistResponse(
-                    project_id=project_id,
-                    operation="add",
-                    wallet_addresses=[whitelist_data.wallet_address],
-                    transaction_hash=transaction_hash,
-                    success=True,
-                    message="User added to whitelist successfully"
-                )
-                
-            except Exception as e:
-                logger.error(f"Blockchain add to whitelist failed: {str(e)}")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to add to whitelist: {str(e)}"
-                )
-                
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Error adding to whitelist: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to add to whitelist: {str(e)}"
-            )
-    
-    async def batch_add_to_whitelist(
-        self,
-        db: Session,
-        project_id: str,
-        whitelist_data: WhitelistBatchRequest
-    ) -> WhitelistResponse:
-        """Add multiple users to project token whitelist"""
-        try:
-            project = db.query(Project).filter(Project.id == project_id).first()
-            if not project:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Project not found"
-                )
-            
-            if not project.token_contract_address:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Token contract not deployed"
-                )
-            
-            # Call blockchain to batch add to whitelist
-            try:
-                transaction_hash = await self.blockchain_service.batch_add_to_whitelist(
-                    token_contract_address=project.token_contract_address,
-                    wallet_addresses=whitelist_data.wallet_addresses
-                )
-                
-                return WhitelistResponse(
-                    project_id=project_id,
-                    operation="batch_add",
-                    wallet_addresses=whitelist_data.wallet_addresses,
-                    transaction_hash=transaction_hash,
-                    success=True,
-                    message="Users added to whitelist successfully"
-                )
-                
-            except Exception as e:
-                logger.error(f"Blockchain batch add to whitelist failed: {str(e)}")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to add to whitelist: {str(e)}"
-                )
-                
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Error batch adding to whitelist: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to add to whitelist: {str(e)}"
-            )
-    
-    async def remove_from_whitelist(
-        self,
-        db: Session,
-        project_id: str,
-        whitelist_data: WhitelistUserRequest
-    ) -> WhitelistResponse:
-        """Remove user from project token whitelist"""
-        try:
-            project = db.query(Project).filter(Project.id == project_id).first()
-            if not project:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Project not found"
-                )
-            
-            if not project.token_contract_address:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Token contract not deployed"
-                )
-            
-            # Call blockchain to remove from whitelist
-            try:
-                transaction_hash = await self.blockchain_service.remove_from_whitelist(
-                    token_contract_address=project.token_contract_address,
-                    wallet_address=whitelist_data.wallet_address
-                )
-                
-                return WhitelistResponse(
-                    project_id=project_id,
-                    operation="remove",
-                    wallet_addresses=[whitelist_data.wallet_address],
-                    transaction_hash=transaction_hash,
-                    success=True,
-                    message="User removed from whitelist successfully"
-                )
-                
-            except Exception as e:
-                logger.error(f"Blockchain remove from whitelist failed: {str(e)}")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to remove from whitelist: {str(e)}"
-                )
-                
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Error removing from whitelist: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to remove from whitelist: {str(e)}"
-            )
-    
-    async def batch_remove_from_whitelist(
-        self,
-        db: Session,
-        project_id: str,
-        whitelist_data: WhitelistBatchRequest
-    ) -> WhitelistResponse:
-        """Remove multiple users from project token whitelist"""
-        try:
-            project = db.query(Project).filter(Project.id == project_id).first()
-            if not project:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Project not found"
-                )
-            
-            if not project.token_contract_address:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Token contract not deployed"
-                )
-            
-            # Call blockchain to batch remove from whitelist
-            try:
-                transaction_hash = await self.blockchain_service.batch_remove_from_whitelist(
-                    token_contract_address=project.token_contract_address,
-                    wallet_addresses=whitelist_data.wallet_addresses
-                )
-                
-                return WhitelistResponse(
-                    project_id=project_id,
-                    operation="batch_remove",
-                    wallet_addresses=whitelist_data.wallet_addresses,
-                    transaction_hash=transaction_hash,
-                    success=True,
-                    message="Users removed from whitelist successfully"
-                )
-                
-            except Exception as e:
-                logger.error(f"Blockchain batch remove from whitelist failed: {str(e)}")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to remove from whitelist: {str(e)}"
-                )
-                
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Error batch removing from whitelist: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to remove from whitelist: {str(e)}"
-            )
-    
-    async def get_whitelist_paginated(
-        self,
-        db: Session,
-        project_id: str,
+        current_user: User,
         page: int = 1,
-        limit: int = 100
-    ) -> dict:
-        """Get project token whitelist"""
+        limit: int = 10
+    ) -> BusinessAdminProjectListResponse:
+        """List projects where the current user is the owner or business admin wallet."""
         try:
-            project = db.query(Project).filter(Project.id == project_id).first()
-            if not project:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Project not found"
-                )
-            
-            if not project.token_contract_address:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Token contract not deployed"
-                )
-            
-            # Get whitelist from blockchain
-            try:
-                whitelist_data = await self.blockchain_service.get_whitelist_paginated(
-                    token_contract_address=project.token_contract_address,
-                    page=page,
-                    limit=limit
-                )
-                
-                return {
-                    "project_id": project_id,
-                    "whitelisted_addresses": whitelist_data.get("addresses", []),
-                    "total_count": whitelist_data.get("total_count", 0),
-                    "page": page,
-                    "limit": limit,
-                    "total_pages": (whitelist_data.get("total_count", 0) + limit - 1) // limit
-                }
-                
-            except Exception as e:
-                logger.error(f"Blockchain get whitelist failed: {str(e)}")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to get whitelist: {str(e)}"
-                )
-                
-        except HTTPException:
-            raise
+            query = db.query(Project).filter(
+                (Project.owner_id == current_user.id) | (Project.business_admin_wallet == current_user.wallet_address)
+            ).order_by(desc(Project.created_at))
+            total = query.count()
+            offset = (page - 1) * limit
+            projects = query.offset(offset).limit(limit).all()
+
+            items: List[BusinessAdminProjectSummary] = []
+            for p in projects:
+                items.append(BusinessAdminProjectSummary(
+                    id=p.id,
+                    name=p.name,
+                    symbol=p.symbol,
+                    status=p.status,
+                    category=p.category,
+                    initial_supply=p.initial_supply,
+                    current_raised=p.current_raised,
+                    business_admin_wallet=p.business_admin_wallet,
+                    token_contract_address=p.token_contract_address,
+                    ieo_contract_address=p.ieo_contract_address,
+                    reward_tracking_contract_address=p.reward_tracking_contract_address,
+                    created_at=p.created_at,
+                    updated_at=p.updated_at
+                ))
+
+            total_pages = (total + limit - 1) // limit
+            return BusinessAdminProjectListResponse(
+                items=items,
+                total=total,
+                page=page,
+                limit=limit,
+                total_pages=total_pages
+            )
         except Exception as e:
-            logger.error(f"Error getting whitelist: {str(e)}")
+            logger.error(f"Error listing business admin projects: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to get whitelist: {str(e)}"
+                detail=f"Failed to list projects: {str(e)}"
             )
 
 # Global instance

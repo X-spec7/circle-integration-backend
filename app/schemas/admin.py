@@ -3,31 +3,6 @@ from typing import List, Optional
 from datetime import datetime
 import re
 
-class WhitelistAddRequest(BaseModel):
-    address: str = Field(..., description="Ethereum address to add to whitelist")
-    
-    @validator('address')
-    def validate_address(cls, v):
-        if not re.match(r"^0x[a-fA-F0-9]{40}$", v):
-            raise ValueError("Invalid Ethereum address format")
-        return v
-
-class WhitelistRemoveRequest(BaseModel):
-    address: str = Field(..., description="Ethereum address to remove from whitelist")
-    
-    @validator('address')
-    def validate_address(cls, v):
-        if not re.match(r"^0x[a-fA-F0-9]{40}$", v):
-            raise ValueError("Invalid Ethereum address format")
-        return v
-
-class WhitelistResponse(BaseModel):
-    project_id: str
-    address: str
-    action: str  # "added" or "removed"
-    transaction_hash: str
-    message: str
-
 class AdminUserResponse(BaseModel):
     id: str
     email: str
@@ -123,6 +98,7 @@ class AdminDashboardStats(BaseModel):
 
 class BusinessAdminUpdate(BaseModel):
     business_admin_wallet: str
+    project_id: Optional[str] = None
 
 class BusinessAdminUpdateResponse(BaseModel):
     project_id: str
