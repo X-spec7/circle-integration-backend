@@ -11,13 +11,16 @@ from decimal import Decimal
 
 from app.models.user import User
 from app.models.project import Project, ProjectStatus
+from app.models.whitelist_request import WhitelistRequest, WhitelistRequestStatus
 from app.schemas.business_admin import (
     StartIEORequest, EndIEORequest, WithdrawUSDCRequest, WithdrawAllUSDCRequest,
     IEOStatusResponse, WithdrawalResponse, ProjectStatsResponse,
     WhitelistUserRequest, WhitelistBatchRequest, WhitelistResponse,
-    BusinessAdminProjectListResponse, BusinessAdminProjectSummary
+    BusinessAdminProjectListResponse, BusinessAdminProjectSummary,
+    BusinessAdminProjectDetailResponse, WhitelistRequestItem
 )
 from app.services.blockchain_service import blockchain_service
+from app.models.whitelist_request import WhitelistRequestAddress
 
 logger = logging.getLogger(__name__)
 
@@ -361,7 +364,7 @@ class BusinessAdminService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to get project stats: {str(e)}"
             )
-
+    
     async def get_business_admin_projects(
         self,
         db: Session,
@@ -380,11 +383,19 @@ class BusinessAdminService:
 
             items: List[BusinessAdminProjectSummary] = []
             for p in projects:
+                # Determine if there are any pending whitelist requests for this project
+                pending_count = db.query(func.count(WhitelistRequest.id)).filter(
+                    WhitelistRequest.project_id == p.id,
+                    WhitelistRequest.status == WhitelistRequestStatus.PENDING
+                ).scalar()
+                has_pending = pending_count > 0
+
                 items.append(BusinessAdminProjectSummary(
                     id=p.id,
                     name=p.name,
                     symbol=p.symbol,
                     status=p.status,
+                    owner_id=p.owner_id,
                     category=p.category,
                     initial_supply=p.initial_supply,
                     current_raised=p.current_raised,
@@ -393,7 +404,8 @@ class BusinessAdminService:
                     ieo_contract_address=p.ieo_contract_address,
                     reward_tracking_contract_address=p.reward_tracking_contract_address,
                     created_at=p.created_at,
-                    updated_at=p.updated_at
+                    updated_at=p.updated_at,
+                    has_whitelist_request=has_pending
                 ))
 
             total_pages = (total + limit - 1) // limit
@@ -410,6 +422,110 @@ class BusinessAdminService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to list projects: {str(e)}"
             )
+
+    async def get_business_admin_project_detail(
+        self,
+        db: Session,
+        current_user: User,
+        project_id: str
+    ) -> BusinessAdminProjectDetailResponse:
+        """Return project detail with pending whitelist requests (addresses, applicant name, application date)."""
+        # Verify access
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+        if current_user.id != project.owner_id and current_user.wallet_address != project.business_admin_wallet:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+        # Pending whitelist requests
+        pending_requests = db.query(WhitelistRequest).filter(
+            WhitelistRequest.project_id == project.id,
+            WhitelistRequest.status == WhitelistRequestStatus.PENDING
+        ).order_by(desc(WhitelistRequest.created_at)).all()
+
+        items: List[WhitelistRequestItem] = []
+        # Preload investor names
+        if pending_requests:
+            investor_ids = list({r.investor_id for r in pending_requests})
+            investors = {u.id: u for u in db.query(User).filter(User.id.in_(investor_ids)).all()}
+        else:
+            investors = {}
+
+        for r in pending_requests:
+            # addresses are stored comma-separated in DB
+            address_list = [a.strip() for a in (r.addresses or '').split(',') if a.strip()]
+            applicant_name = None
+            if r.investor_id in investors:
+                u = investors[r.investor_id]
+                applicant_name = u.name or u.email
+            items.append(WhitelistRequestItem(
+                id=r.id,
+                investor_id=r.investor_id,
+                applicant_name=applicant_name,
+                addresses=address_list,
+                status=r.status.value if hasattr(r.status, 'value') else str(r.status),
+                created_at=r.created_at
+            ))
+
+        has_pending = len(items) > 0
+
+        return BusinessAdminProjectDetailResponse(
+            id=project.id,
+            name=project.name,
+            symbol=project.symbol,
+            status=project.status,
+            category=project.category,
+            owner_id=project.owner_id,
+            initial_supply=project.initial_supply,
+            current_raised=project.current_raised,
+            business_admin_wallet=project.business_admin_wallet,
+            token_contract_address=project.token_contract_address,
+            ieo_contract_address=project.ieo_contract_address,
+            reward_tracking_contract_address=project.reward_tracking_contract_address,
+            created_at=project.created_at,
+            updated_at=project.updated_at,
+            has_whitelist_request=has_pending,
+            pending_whitelist_requests=items
+        )
+
+    async def update_whitelist_request_status(
+        self,
+        db: Session,
+        project_id: str,
+        request_id: str,
+        new_status: str,
+        current_user: User
+    ) -> dict:
+        """Update whitelist request status (approved/rejected) and sync address rows."""
+        # Verify access to project
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+        if current_user.id != project.owner_id and current_user.wallet_address != project.business_admin_wallet:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+        req = db.query(WhitelistRequest).filter(WhitelistRequest.id == request_id, WhitelistRequest.project_id == project_id).first()
+        if not req:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Whitelist request not found")
+
+        # Validate status
+        if new_status not in {WhitelistRequestStatus.PENDING.value, WhitelistRequestStatus.APPROVED.value, WhitelistRequestStatus.REJECTED.value}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status")
+
+        # Update request
+        req.status = WhitelistRequestStatus(new_status)
+
+        # Update child address rows
+        db.query(WhitelistRequestAddress).filter(
+            WhitelistRequestAddress.request_id == req.id
+        ).update({ 'status': WhitelistRequestStatus(new_status) })
+
+        db.commit()
+        return {
+            'request_id': req.id,
+            'project_id': project_id,
+            'status': req.status.value
+        }
 
 # Global instance
 business_admin_service = BusinessAdminService()

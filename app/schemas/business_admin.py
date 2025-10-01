@@ -115,6 +115,7 @@ class BusinessAdminProjectSummary(BaseModel):
     name: str
     symbol: str
     status: str
+    owner_id: str
     category: Optional[str] = None
     initial_supply: Optional[int] = None
     current_raised: Optional[Decimal] = None
@@ -124,6 +125,7 @@ class BusinessAdminProjectSummary(BaseModel):
     reward_tracking_contract_address: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+    has_whitelist_request: Optional[bool] = False
 
 class BusinessAdminProjectListResponse(BaseModel):
     items: List[BusinessAdminProjectSummary]
@@ -147,6 +149,7 @@ class InvestorWhitelistApplyResponse(BaseModel):
 class WhitelistRequestItem(BaseModel):
     id: str
     investor_id: str
+    applicant_name: Optional[str] = None
     addresses: List[str]
     status: str
     created_at: datetime
@@ -154,3 +157,31 @@ class WhitelistRequestItem(BaseModel):
 class WhitelistRequestListResponse(BaseModel):
     items: List[WhitelistRequestItem]
     total: int
+
+class BusinessAdminProjectDetailResponse(BaseModel):
+    id: str
+    name: str
+    symbol: str
+    status: str
+    category: Optional[str] = None
+    owner_id: str
+    initial_supply: Optional[int] = None
+    current_raised: Optional[Decimal] = None
+    business_admin_wallet: Optional[str] = None
+    token_contract_address: Optional[str] = None
+    ieo_contract_address: Optional[str] = None
+    reward_tracking_contract_address: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    has_whitelist_request: bool
+    pending_whitelist_requests: List[WhitelistRequestItem]
+
+# Request/Response for setting oracle address (owner-only)
+class SetOracleRequest(BaseModel):
+    oracle_address: str = Field(..., description="Oracle contract address")
+
+class SetOracleResponse(BaseModel):
+    project_id: str
+    oracle_address: str
+    transaction_hash: str
+    message: str

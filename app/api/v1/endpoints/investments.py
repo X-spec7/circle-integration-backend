@@ -6,13 +6,14 @@ from app.api.deps import get_current_user
 from app.models.user import User, UserType
 from app.models.project import Project, ProjectStatus
 from app.models.investment import Investment, InvestmentStatus
-from app.models.whitelist_request import WhitelistRequest, WhitelistRequestStatus
+from app.models.whitelist_request import WhitelistRequest, WhitelistRequestStatus, WhitelistRequestAddress
 from app.schemas.investment import InvestmentCreate, InvestmentResponse, InvestmentDetail
 from app.schemas.project import ProjectResponse
-from app.schemas.business_admin import InvestorWhitelistApplyRequest, InvestorWhitelistApplyResponse
+from app.schemas.business_admin import InvestorWhitelistApplyRequest, InvestorWhitelistApplyResponse, WhitelistRequestItem, WhitelistRequestListResponse
 from app.services.investment_service import InvestmentService
 from app.services.blockchain_service import blockchain_service
 import logging
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -86,6 +87,15 @@ async def apply_whitelist(
         if not addresses_clean:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No valid addresses provided")
         
+        # Check duplicates per address (pending only) using address table
+        dup = db.query(WhitelistRequestAddress).filter(
+            WhitelistRequestAddress.project_id == project.id,
+            WhitelistRequestAddress.address.in_(addresses_clean),
+            WhitelistRequestAddress.status == WhitelistRequestStatus.PENDING
+        ).first()
+        if dup:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Address already has a pending request for this project: {dup.address}")
+        
         req = WhitelistRequest(
             project_id=project.id,
             investor_id=current_user.id,
@@ -93,6 +103,17 @@ async def apply_whitelist(
             status=WhitelistRequestStatus.PENDING
         )
         db.add(req)
+        db.flush()
+        
+        # Insert per-address rows
+        for addr in addresses_clean:
+            db.add(WhitelistRequestAddress(
+                request_id=req.id,
+                project_id=project.id,
+                investor_id=current_user.id,
+                address=addr,
+                status=WhitelistRequestStatus.PENDING
+            ))
         db.commit()
         db.refresh(req)
         
@@ -375,3 +396,77 @@ async def create_crypto_investment(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create crypto investment"
         )
+
+@router.get("/whitelist/requests", response_model=WhitelistRequestListResponse)
+async def list_my_whitelist_requests(
+    project_id: str = Query(...),
+    current_user: User = Depends(get_investor_user),
+    db: Session = Depends(get_db)
+):
+    """List current investor's whitelist requests for a project."""
+    reqs = db.query(WhitelistRequest).filter(
+        WhitelistRequest.project_id == project_id,
+        WhitelistRequest.investor_id == current_user.id
+    ).order_by(WhitelistRequest.created_at.desc()).all()
+
+    items: List[WhitelistRequestItem] = []
+    for r in reqs:
+        addresses = [a.strip() for a in (r.addresses or '').split(',') if a.strip()]
+        items.append(WhitelistRequestItem(
+            id=r.id,
+            investor_id=current_user.id,
+            applicant_name=None,
+            addresses=addresses,
+            status=r.status.value if hasattr(r.status, 'value') else str(r.status),
+            created_at=r.created_at
+        ))
+    return WhitelistRequestListResponse(items=items, total=len(items))
+
+class InvestorUpdateWhitelistStatusRequest(BaseModel):
+    status: str
+
+@router.post("/whitelist/requests/{request_id}/status")
+async def update_my_whitelist_request_status(
+    request_id: str,
+    body: InvestorUpdateWhitelistStatusRequest,
+    current_user: User = Depends(get_investor_user),
+    db: Session = Depends(get_db)
+):
+    """Allow investor to change a rejected whitelist request back to pending (re-apply)."""
+    # Only allow setting to pending
+    if body.status.lower() != WhitelistRequestStatus.PENDING.value:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only status 'pending' is allowed")
+
+    # Fetch request and verify ownership
+    req = db.query(WhitelistRequest).filter(WhitelistRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Whitelist request not found")
+    if req.investor_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your request")
+
+    # Only from rejected -> pending
+    current_status = req.status.value if hasattr(req.status, 'value') else str(req.status)
+    if current_status != WhitelistRequestStatus.REJECTED.value:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only rejected requests can be re-applied")
+
+    # Check duplicates per address before switching to pending
+    child_rows = db.query(WhitelistRequestAddress).filter(WhitelistRequestAddress.request_id == req.id).all()
+    addresses = [cr.address for cr in child_rows]
+    if addresses:
+        dup = db.query(WhitelistRequestAddress).filter(
+            WhitelistRequestAddress.project_id == req.project_id,
+            WhitelistRequestAddress.address.in_(addresses),
+            WhitelistRequestAddress.status == WhitelistRequestStatus.PENDING,
+            WhitelistRequestAddress.request_id != req.id
+        ).first()
+        if dup:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Address already has a pending request for this project: {dup.address}")
+
+    # Update statuses
+    req.status = WhitelistRequestStatus.PENDING
+    db.query(WhitelistRequestAddress).filter(WhitelistRequestAddress.request_id == req.id).update({
+        'status': WhitelistRequestStatus.PENDING
+    })
+    db.commit()
+
+    return {"request_id": req.id, "project_id": req.project_id, "status": req.status.value}

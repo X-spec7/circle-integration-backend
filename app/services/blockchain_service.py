@@ -436,8 +436,8 @@ class BlockchainService:
             gas_price = await self.get_gas_price_with_safety_margin()
             nonce = self._get_nonce()
             
-            # Build transaction
-            tx = ieo_contract.functions.setOracle(oracle_address).build_transaction({
+            # Build transaction - function name in IEO.sol is setPriceOracle(address)
+            tx = ieo_contract.functions.setPriceOracle(oracle_address).build_transaction({
                 'from': self.account.address,
                 'gasPrice': gas_price,
                 'nonce': nonce

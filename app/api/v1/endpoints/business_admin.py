@@ -14,9 +14,15 @@ from app.schemas.business_admin import (
     StartIEORequest, EndIEORequest, WithdrawUSDCRequest, WithdrawAllUSDCRequest,
     IEOStatusResponse, WithdrawalResponse, ProjectStatsResponse,
     WhitelistUserRequest, WhitelistBatchRequest, WhitelistResponse,
-    BusinessAdminProjectListResponse
+    BusinessAdminProjectListResponse, BusinessAdminProjectDetailResponse,
+    SetOracleRequest, SetOracleResponse
 )
 from app.services.business_admin_service import business_admin_service
+
+from pydantic import BaseModel
+
+class UpdateWhitelistStatusRequest(BaseModel):
+    status: str
 
 router = APIRouter()
 
@@ -63,6 +69,15 @@ async def get_my_projects(
 ):
     """Get projects where the current user is the owner or business admin wallet."""
     return await business_admin_service.get_business_admin_projects(db, current_user, page, limit)
+
+@router.get("/projects/{project_id}", response_model=BusinessAdminProjectDetailResponse)
+async def get_project_detail(
+    project_id: str,
+    current_user: User = Depends(get_business_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get a single project detail including pending whitelist requests."""
+    return await business_admin_service.get_business_admin_project_detail(db, current_user, project_id)
 
 @router.post("/projects/{project_id}/start-ieo")
 async def start_ieo(
@@ -127,6 +142,36 @@ async def get_project_stats(
     """Get project statistics"""
     await verify_business_admin_access(project_id, current_user, db)
     return await business_admin_service.get_project_stats(db, project_id)
+
+@router.post("/projects/{project_id}/set-oracle", response_model=SetOracleResponse)
+async def set_oracle_address(
+    project_id: str,
+    oracle_data: SetOracleRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Set oracle address for a project's IEO contract (owner only)."""
+    # Owner-only check
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    if current_user.id != project.owner_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the project owner can set oracle address")
+
+    if not project.ieo_contract_address:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="IEO contract not deployed for this project")
+
+    tx_hash = await business_admin_service.blockchain_service.set_oracle_address(
+        ieo_contract_address=project.ieo_contract_address,
+        oracle_address=oracle_data.oracle_address
+    )
+
+    return SetOracleResponse(
+        project_id=project_id,
+        oracle_address=oracle_data.oracle_address,
+        transaction_hash=tx_hash,
+        message="Oracle address set successfully"
+    )
 
 @router.post("/projects/{project_id}/whitelist/user")
 async def whitelist_user(
@@ -195,6 +240,17 @@ async def remove_from_whitelist(
         )
     )
 
+@router.post("/projects/{project_id}/whitelist/requests/{request_id}/status")
+async def update_whitelist_status(
+    project_id: str,
+    request_id: str,
+    body: UpdateWhitelistStatusRequest,
+    current_user: User = Depends(get_business_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Update whitelist request status for a project (business admin/owner)."""
+    return await business_admin_service.update_whitelist_request_status(db, project_id, request_id, body.status, current_user)
+
 @router.get("/projects")
 async def get_business_admin_projects(
     current_user: User = Depends(get_current_user),
@@ -204,52 +260,4 @@ async def get_business_admin_projects(
 ):
     """Get projects where current user is business admin"""
     return await business_admin_service.get_business_admin_projects(db, current_user, page, limit)
-
-@router.post("/projects/{project_id}/set-oracle")
-async def set_oracle_address(
-    project_id: str,
-    oracle_data: dict,
-    current_user: User = Depends(get_business_admin_user),
-    db: Session = Depends(get_db)
-):
-    """Set oracle address for a project's IEO contract"""
-    try:
-        logger.info(f"🔮 Business admin {current_user.email} setting oracle for project {project_id}")
-        
-        # Verify project exists and user has access
-        project = db.query(Project).filter(Project.id == project_id).first()
-        if not project:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Project not found"
-            )
-        
-        if not project.ieo_contract_address:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="IEO contract not deployed for this project"
-            )
-        
-        # Set oracle address via smart contract
-        tx_hash = await blockchain_service.set_oracle_address(
-            ieo_contract_address=project.ieo_contract_address,
-            oracle_address=oracle_data['oracle_address']
-        )
-        
-        logger.info(f"✅ Oracle address set for project {project_id}: {tx_hash}")
-        return {
-            "project_id": project_id,
-            "oracle_address": oracle_data['oracle_address'],
-            "transaction_hash": tx_hash,
-            "message": "Oracle address set successfully"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Error setting oracle address: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to set oracle address"
-        )
 
