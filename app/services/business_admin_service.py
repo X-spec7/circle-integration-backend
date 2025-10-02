@@ -21,6 +21,7 @@ from app.schemas.business_admin import (
 )
 from app.services.blockchain_service import blockchain_service
 from app.models.whitelist_request import WhitelistRequestAddress
+from app.models.wallet_address import WalletAddress
 
 logger = logging.getLogger(__name__)
 
@@ -496,7 +497,9 @@ class BusinessAdminService:
         new_status: str,
         current_user: User
     ) -> dict:
-        """Update whitelist request status (approved/rejected) and sync address rows."""
+        """Update whitelist request status (approved/rejected) and sync address rows.
+        On approval, record wallet ownership mappings.
+        """
         # Verify access to project
         project = db.query(Project).filter(Project.id == project_id).first()
         if not project:
@@ -520,6 +523,23 @@ class BusinessAdminService:
             WhitelistRequestAddress.request_id == req.id
         ).update({ 'status': WhitelistRequestStatus(new_status) })
 
+        # On approval, upsert wallet ownerships
+        if req.status == WhitelistRequestStatus.APPROVED:
+            child_rows = db.query(WhitelistRequestAddress).filter(WhitelistRequestAddress.request_id == req.id).all()
+            for child in child_rows:
+                addr = (child.address or '').strip().lower()
+                if not addr:
+                    continue
+                existing = db.query(WalletAddress).filter(WalletAddress.address == addr).first()
+                if existing:
+                    if existing.user_id != req.investor_id:
+                        # Suspicious: address claimed by a different user
+                        logger.warning(f"Suspicious wallet ownership conflict for address {addr}: existing user {existing.user_id}, request user {req.investor_id}")
+                        # Placeholder for future action
+                    # else: already owned by same user, do nothing
+                else:
+                    db.add(WalletAddress(user_id=req.investor_id, address=addr))
+        
         db.commit()
         return {
             'request_id': req.id,

@@ -36,6 +36,7 @@ class Investment(Base):
     usdc_amount = Column(Numeric(15, 6), nullable=False)  # USDC amount (6 decimals)
     token_amount = Column(Numeric(20, 18), nullable=False)  # Token amount (18 decimals)
     investment_time = Column(DateTime, nullable=False)
+    investor_wallet_address = Column(String, nullable=True)
     
     # Status tracking
     status = Column(Enum(InvestmentStatus), default=InvestmentStatus.PENDING)

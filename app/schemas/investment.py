@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from app.models.investment import InvestmentStatus, PaymentMethod
+from decimal import Decimal
 
 class InvestmentCreate(BaseModel):
     project_id: str = Field(..., description="ID of the project to invest in")
@@ -17,6 +18,8 @@ class InvestmentResponse(BaseModel):
     payment_method: PaymentMethod
     created_at: datetime
     updated_at: datetime
+    investor_wallet_address: Optional[str] = None
+    block_number: Optional[int] = None
 
     class Config:
         from_attributes = True

@@ -50,6 +50,9 @@ class Project(Base):
     token_deployment_tx = Column(String, nullable=True)
     ieo_deployment_tx = Column(String, nullable=True)
     reward_tracking_deployment_tx = Column(String, nullable=True)
+
+    # Sync cursor for blockchain events
+    last_processed_block = Column(BigInteger, nullable=True)
     
     # Optional URLs
     image_url = Column(String(500), nullable=True)
