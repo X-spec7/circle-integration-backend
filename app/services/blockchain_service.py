@@ -14,6 +14,11 @@ from compiled_contracts.contract_constants import (
     MOCKPRICEORACLE_ABI,
     REWARDTRACKING_BYTECODE
 )
+# Minimal ERC20 interface for decimals
+ERC20_DECIMALS_ABI = [{"constant": True, "inputs": [], "name": "decimals", "outputs": [{"name": "", "type": "uint8"}], "type": "function"}]
+
+# Constant: default investment token decimals (USDC-like tokens commonly 6; project requires 18)
+INVESTMENT_TOKEN_DECIMALS_DEFAULT = 18
 
 logger = logging.getLogger(__name__)
 
@@ -238,6 +243,11 @@ class BlockchainService:
             if not IEO_BYTECODE or IEO_BYTECODE == "0x":
                 raise Exception("IEO contract not compiled")
             
+            # Values are pre-scaled (project service applies 10^decimals). Pass through unchanged.
+            min_scaled = int(min_investment)
+            max_scaled = int(max_investment)
+            logger.info(f"⚙️ Using pre-scaled min/max: min={min_scaled}, max={max_scaled}")
+            
             # Get gas price and nonce
             gas_price = await self.get_gas_price_with_safety_margin()
             nonce = self._get_nonce()
@@ -254,8 +264,8 @@ class BlockchainService:
                 admin_address,
                 business_admin_address,
                 delay_days,
-                min_investment,
-                max_investment
+                min_scaled,
+                max_scaled
             ).build_transaction({
                 'from': self.account.address,
                 'gasPrice': gas_price,
