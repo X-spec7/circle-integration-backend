@@ -18,6 +18,8 @@ contract IEO is Ownable, IIEO {
     
     address public constant override USDC_ADDRESS = 0x966c69ae5b4fB4744e976EB058cfe7592bD935d2;
     uint8 public constant MAX_PRICE_DECIMALS = 18;
+    uint8 public constant TOKEN_DECIMALS = 18;
+    uint8 public constant USDC_DECIMALS = 18;
     
     address public immutable override tokenAddress;
     address public immutable override admin;
@@ -398,23 +400,21 @@ contract IEO is Ownable, IIEO {
         emit IEOEnded(totalRaised, totalTokensSold);
     }
 
-    function calculateTokenAmount(uint256 usdcAmount, uint256 tokenPrice, uint256 priceDecimals)
-        internal
-        pure
-        returns (uint256)
-    {
-        // Validate priceDecimals range to prevent overflow
+    function calculateTokenAmount(
+        uint256 usdcAmount,
+        uint256 tokenPrice,
+        uint256 priceDecimals
+    ) internal pure returns (uint256) {
         require(priceDecimals <= MAX_PRICE_DECIMALS, "Price decimals too high");
-        
-        // Calculate multiplier safely
-        uint256 multiplier = 10 ** priceDecimals;
-        
-        // Calculate numerator
-        uint256 numerator = usdcAmount * 1e18 * multiplier;
-        
-        // Validate no overflow occurred by checking the reverse calculation
-        require(numerator / usdcAmount / 1e18 == multiplier, "Overflow in token calculation");
-        
+
+        // scaling = 10^(priceDecimals + tokenDecimals - usdcDecimals)
+        uint256 exponent = priceDecimals + TOKEN_DECIMALS - USDC_DECIMALS;
+        uint256 scaling = 10 ** exponent;
+
+        // safe-ish overflow check (depends on MAX limits)
+        uint256 numerator = usdcAmount * scaling;
+        require(numerator / scaling == usdcAmount, "Overflow in token calculation");
+
         return numerator / tokenPrice;
     }
 
@@ -447,7 +447,7 @@ contract IEO is Ownable, IIEO {
             }
         }
 
-        // Calculate token amount 
+        // Calculate token amount
         uint256 tokenAmount = calculateTokenAmount(usdcAmount, tokenPrice, priceDecimals);
 
         // Transfer USDC from investor
@@ -809,7 +809,6 @@ contract IEO is Ownable, IIEO {
         return IERC20(USDC_ADDRESS).balanceOf(address(this));
     }
 
-    // New view functions for withdrawal tracking
     function getWithdrawableAmount()
         public
         view
