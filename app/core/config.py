@@ -59,6 +59,14 @@ class Settings(BaseSettings):
         default=os.getenv("SEPOLIA_RPC_URL", "https://sepolia.infura.io/v3/YOUR_PROJECT_ID"),
         description="Sepolia RPC URL"
     )
+    sepolia_ws_rpc_url: str = Field(
+        default=os.getenv("SEPOLIA_WS_RPC_URL", ""),
+        description="Sepolia WebSocket RPC URL"
+    )
+    sepolia_mock_usdc_address: str = Field(
+        default=os.getenv("SEPOLIA_MOCK_USDC_ADDRESS", ""),
+        description="Sepolia Mock USDC address for decimals"
+    )
     sepolia_private_key: str = Field(
         default=os.getenv("SEPOLIA_WALLET_PRIVATE_KEY", ""),
         description="Private key for deploying contracts on Sepolia"
@@ -69,6 +77,10 @@ class Settings(BaseSettings):
         default=os.getenv("POLYGON_RPC_URL", "https://polygon-rpc.com"),
         description="Polygon RPC URL"
     )
+    polygon_ws_rpc_url: str = Field(
+        default=os.getenv("POLYGON_WS_RPC_URL", ""),
+        description="Polygon WebSocket RPC URL"
+    )
     polygon_private_key: str = Field(
         default=os.getenv("POLYGON_PRIVATE_KEY", ""),
         description="Private key for deploying contracts on Polygon"
@@ -78,6 +90,10 @@ class Settings(BaseSettings):
     mainnet_rpc_url: str = Field(
         default=os.getenv("MAINNET_RPC_URL", "https://mainnet.infura.io/v3/YOUR_PROJECT_ID"),
         description="Ethereum mainnet RPC URL"
+    )
+    mainnet_ws_rpc_url: str = Field(
+        default=os.getenv("MAINNET_WS_RPC_URL", ""),
+        description="Ethereum mainnet WebSocket RPC URL"
     )
     mainnet_private_key: str = Field(
         default=os.getenv("MAINNET_PRIVATE_KEY", ""),
@@ -112,6 +128,18 @@ class Settings(BaseSettings):
             return self.sepolia_rpc_url  # Default to Sepolia
     
     @property
+    def ws_rpc_url(self) -> Optional[str]:
+        """Get WebSocket RPC URL for the selected network if configured"""
+        if self.network.upper() == "SEPOLIA":
+            return self.sepolia_ws_rpc_url or None
+        elif self.network.upper() == "POLYGON":
+            return self.polygon_ws_rpc_url or None
+        elif self.network.upper() == "MAINNET":
+            return self.mainnet_ws_rpc_url or None
+        else:
+            return self.sepolia_ws_rpc_url or None
+    
+    @property
     def private_key(self) -> str:
         """Get private key based on selected network"""
         if self.network.upper() == "SEPOLIA":
@@ -134,6 +162,13 @@ class Settings(BaseSettings):
             return "0xA0b86a33E6441b8c4C8C0d4b0c8C0d4b0c8C0d4b"  # Mainnet USDC
         else:
             return "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"  # Default to Sepolia
+    
+    @property
+    def usdc_for_decimals(self) -> Optional[str]:
+        """Return the USDC address to query for decimals, preferring explicit mock address when set."""
+        if self.network.upper() == "SEPOLIA" and self.sepolia_mock_usdc_address:
+            return self.sepolia_mock_usdc_address
+        return None
     
     # File upload settings
     upload_dir: str = Field(
