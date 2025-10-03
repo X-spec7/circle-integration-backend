@@ -10,7 +10,7 @@ from datetime import datetime
 from app.models.user import User
 from app.models.project import Project, ProjectStatus
 from app.schemas.project import ProjectCreate, ProjectDeploymentResponse
-from app.services.blockchain_service import blockchain_service
+from app.services.blockchain_service import blockchain_service, INVESTMENT_TOKEN_DECIMALS_DEFAULT
 
 logger = logging.getLogger(__name__)
 
@@ -66,14 +66,19 @@ class ProjectService:
             # STEP 1: Deploy contracts FIRST (before creating database record)
             logger.info(f"�� Step 1: Deploying smart contracts...")
             try:
+                # Pre-scale min/max investment by token decimals (18)
+                scale = 10 ** INVESTMENT_TOKEN_DECIMALS_DEFAULT
+                min_investment_scaled = int(project_data.min_investment) * scale
+                max_investment_scaled = int(project_data.max_investment) * scale
+
                 deployment_result = await blockchain_service.deploy_project_contracts({
                     "name": project_data.name,
                     "symbol": project_data.symbol,
                     "initial_supply": project_data.initial_supply,
                     "business_admin_wallet": project_data.business_admin_wallet,
                     "delay_days": project_data.delay_days,
-                    "min_investment": project_data.min_investment,
-                    "max_investment": project_data.max_investment
+                    "min_investment": min_investment_scaled,
+                    "max_investment": max_investment_scaled
                 })
                 logger.info(f"✅ Smart contracts deployed successfully!")
             except Exception as e:
@@ -85,6 +90,12 @@ class ProjectService:
             
             # STEP 2: Create project record in database (only after successful deployment)
             logger.info(f"📝 Step 2: Creating project record in database...")
+            # Set event sync cursor to current chain head
+            try:
+                current_block = blockchain_service.w3.eth.block_number
+            except Exception:
+                current_block = None
+            
             project = Project(
                 owner_id=user.id,
                 name=project_data.name,
@@ -110,7 +121,10 @@ class ProjectService:
                 # Deployment transaction hashes
                 token_deployment_tx=deployment_result["token_deployment_tx"],
                 ieo_deployment_tx=deployment_result["ieo_deployment_tx"],
-                reward_tracking_deployment_tx=deployment_result["reward_tracking_deployment_tx"]
+                reward_tracking_deployment_tx=deployment_result["reward_tracking_deployment_tx"],
+                
+                # Initialize event sync position
+                last_processed_block=current_block
             )
             
             db.add(project)
@@ -257,6 +271,6 @@ class ProjectService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to delete project"
             )
-
+    
 # Create service instance
 project_service = ProjectService()
