@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Enum, Numeric, ForeignKey
+from sqlalchemy import Column, String, DateTime, Enum, Numeric, ForeignKey, Boolean
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -27,14 +27,14 @@ class Payment(Base):
     # Circle integration
     circle_payment_id = Column(String)
     circle_transfer_id = Column(String)
-    
-    # Stripe integration (for future use)
-    stripe_payment_intent_id = Column(String)
+    crypto_payout_succeeded = Column(Boolean, default=False)
+    investment_recorded = Column(Boolean, default=False)
     
     # Blockchain details
+    investor_wallet_address = Column(String)  # investor wallet to receive refunds/claims
     transaction_hash = Column(String)  # Blockchain transaction hash
-    escrow_transaction_hash = Column(String)  # Transfer to escrow transaction
-    blockchain_tx_hash = Column(String)  # EURC transfer transaction hash
+    ieo_transaction_hash = Column(String)  # Transfer to IEO transaction
+    blockchain_tx_hash = Column(String)  # EUR/USDC conversion tx or reference
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
