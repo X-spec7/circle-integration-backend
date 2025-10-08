@@ -60,6 +60,7 @@ async def initiate_payment(
     finally:
         await payment_service.close()
 
+# NOTE: not used anymore
 @router.post("/payments/crypto", response_model=CryptoPaymentResponse)
 async def initiate_crypto_payment(
     crypto_data: CryptoPaymentRequest,

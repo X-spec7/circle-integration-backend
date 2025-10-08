@@ -159,6 +159,7 @@ async def get_project_details(
             detail="Failed to retrieve project details"
         )
 
+# NOTE: not used anymore!
 @router.post("/invest", response_model=InvestmentResponse)
 async def create_investment(
     investment_data: InvestmentCreate,
