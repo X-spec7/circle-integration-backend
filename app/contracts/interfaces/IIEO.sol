@@ -412,6 +412,13 @@ interface IIEO {
      * @param usdcAmount The amount of USDC to invest
      */
     function invest(uint256 usdcAmount) external;
+
+    /**
+     * @notice Records an investment on behalf of an investor (admin/owner only)
+     * @param investor The investor address
+     * @param usdcAmount The invested USDC amount (scaled to USDC decimals)
+     */
+    function adminRecordInvestment(address investor, uint256 usdcAmount) external;
     
     /**
      * @notice Claims purchased tokens after the claim delay

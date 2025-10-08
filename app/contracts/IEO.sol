@@ -484,6 +484,77 @@ contract IEO is Ownable, IIEO {
         emit InvestmentMade(msg.sender, usdcAmount, tokenAmount);
     }
 
+    /**
+     * @notice Admin records an off-chain investment on behalf of a user.
+     * @dev This does NOT transfer USDC; it assumes USDC has already been received by the contract
+     *      (e.g., via off-chain on-ramp payout). It calculates token amount using oracle and records
+     *      a new investment for the specified investor address.
+     *      Access restricted to admin/owner.
+     * @param investor The investor wallet address (must be whitelisted in the token when claiming).
+     * @param usdcAmount The invested USDC amount scaled to USDC_DECIMALS.
+     */
+    function adminRecordInvestment(address investor, uint256 usdcAmount)
+        external
+        onlyAdmin
+        nonReentrant
+        circuitBreakerNotTriggered
+    {
+        if (investor == address(0)) {
+            revert FundraisingErrors.ZeroAddress();
+        }
+        if (usdcAmount < MIN_INVESTMENT || usdcAmount > MAX_INVESTMENT) {
+            revert FundraisingErrors.InvalidInvestmentAmount();
+        }
+
+        // Get token price from oracle (now includes timestamp)
+        (uint256 tokenPrice, uint256 priceDecimals, uint256 priceTimestamp) = IPriceOracle(priceOracle).getPrice(tokenAddress);
+        if (tokenPrice == 0) {
+            revert FundraisingErrors.InvalidPrice();
+        }
+
+        // Apply oracle circuit breaker checks
+        _validateOraclePrice(tokenPrice, priceTimestamp);
+
+        // Validate price if bounds are set
+        if (minTokenPrice > 0 || maxTokenPrice > 0) {
+            if (minTokenPrice > 0 && tokenPrice < minTokenPrice) {
+                revert FundraisingErrors.InvalidPrice();
+            }
+            if (maxTokenPrice > 0 && tokenPrice > maxTokenPrice) {
+                revert FundraisingErrors.InvalidPrice();
+            }
+        }
+
+        // Calculate token amount
+        uint256 tokenAmount = calculateTokenAmount(usdcAmount, tokenPrice, priceDecimals);
+
+        // Create new separate investment for the specified investor
+        Investment memory newInvestment = Investment({
+            usdcAmount: uint128(usdcAmount),
+            tokenAmount: uint128(tokenAmount),
+            investmentTime: uint64(block.timestamp),
+            claimed: false,
+            refunded: false
+        });
+
+        userInvestments[investor].push(newInvestment);
+
+        if (!isInvestor[investor]) {
+            isInvestor[investor] = true;
+            investors.push(investor);
+        }
+
+        totalRaised += uint128(usdcAmount);
+        totalTokensSold += uint128(tokenAmount);
+
+        // Notify reward tracking contract if enabled
+        if (isRewardTrackingEnabled() && rewardTrackingAddress != address(0)) {
+            IRewardTracking(rewardTrackingAddress).onTokenSold(investor, tokenAmount);
+        }
+
+        emit InvestmentMade(investor, usdcAmount, tokenAmount);
+    }
+
     // Internal function to validate oracle price
     function _validateOraclePrice(uint256 tokenPrice, uint256 priceTimestamp)
         internal
