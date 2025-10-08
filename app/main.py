@@ -1,4 +1,5 @@
 # Import logging configuration first
+from contextlib import asynccontextmanager
 import logging_config
 
 import logging
@@ -8,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import init_db
 from app.api.v1.api import api_router
+from app.services.event_listener import live_event_listener
 
 def create_application() -> FastAPI:
     """Create and configure FastAPI application"""
@@ -38,10 +40,26 @@ def create_application() -> FastAPI:
 # Create application instance
 app = create_application()
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database on startup"""
+logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize database and start blockchain event syncing on app startup."""
+    # Startup logic
     init_db()
+    try:
+        await live_event_listener.start()
+    except Exception as e:
+        logger.error(f"Failed to start live event listener: {e}")
+
+    # Yield control back to FastAPI
+    yield
+
+    # Shutdown logic (optional)
+    try:
+        await live_event_listener.stop()
+    except Exception as e:
+        logger.error(f"Failed to stop live event listener: {e}")
 
 @app.get("/")
 def read_root():
