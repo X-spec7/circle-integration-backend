@@ -31,6 +31,7 @@ class PaymentInitiateRequest(BaseModel):
     project_id: str = Field(..., description="Project ID")
     amount: Decimal = Field(..., gt=0, description="Payment amount")
     payment_method: PaymentMethod = Field(..., description="Payment method")
+    investor_wallet_address: str = Field(..., description="Investor wallet (must be whitelisted)")
 
 class PaymentInitiateResponse(BaseModel):
     """Schema for payment initiation response"""
@@ -39,6 +40,7 @@ class PaymentInitiateResponse(BaseModel):
     payment_url: Optional[str] = None
     bank_details: Optional[dict] = None
     message: str
+    payment_id: Optional[str] = None
 
 class PaymentStatusResponse(BaseModel):
     """Schema for payment status response"""
