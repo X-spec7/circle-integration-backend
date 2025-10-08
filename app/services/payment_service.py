@@ -275,6 +275,7 @@ class PaymentService:
         try:
             # Update payment status
             payment.status = PaymentStatus.COMPLETED
+            # TODO: update deprecated utcnow method
             payment.updated_at = datetime.utcnow()
             
             # Get investment and project
@@ -289,23 +290,22 @@ class PaymentService:
             project.current_raised += investment.amount
             
             # Process on-ramp and escrow transfer for card payments
-            if payment.payment_method in ["card", "fiat"] and project.escrow_contract_address:
+            if payment.payment_method in ["card", "fiat"] and project.ieo_contract_address:
                 try:
-                    # Step 1: EUR is automatically converted to EURC in Circle Mint
-                    # Step 2: Convert EURC to USDC (since EURC is not available on Polygon)
+                    # Step 1: Convert EUR to USDC in Circle (ledger conversion)
                     conversion_result = await self.circle_client.convert_currency(
                         source_amount=str(int(payment.amount * 100)),  # Convert to cents
-                        source_currency="EURC",
+                        source_currency="EUR",
                         destination_currency="USDC"
                     )
                     
-                    logger.info(f"Currency conversion successful: {conversion_result}")
+                    logger.info(f"Currency conversion EUR→USDC successful: {conversion_result}")
                     
                     # Step 3: Add escrow address to Circle Address Book (if not already added)
                     recipient_result = await self.circle_client.add_address_book_recipient(
-                        address=project.escrow_contract_address,
+                        address=project.ieo_contract_address,
                         chain="MATIC",  # Polygon
-                        description=f"Escrow for {project.name}"
+                        description=f"IEO for {project.name}"
                     )
                     
                     recipient_id = recipient_result["data"]["id"]
@@ -325,10 +325,10 @@ class PaymentService:
                     payout_id = payout_result["data"]["id"]
                     payment.circle_transfer_id = payout_id
                     
-                    logger.info(f"USDC payout to escrow initiated: {payout_id}")
+                    logger.info(f"USDC payout to IEO contract initiated: {payout_id}")
                     
                 except Exception as e:
-                    logger.error(f"Failed to process on-ramp and escrow transfer: {str(e)}")
+                    logger.error(f"Failed to process on-ramp and IEO transfer: {str(e)}")
                     # Don't fail the payment, just log the error
                     # The transfer can be retried later
             
