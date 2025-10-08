@@ -8,8 +8,10 @@ from app.models.investment import Investment, PaymentMethod, PaymentStatus
 from app.models.payment import Payment
 from app.models.project import Project, ProjectStatus
 from app.models.user import User
+from app.models.wallet_address import WalletAddress
 from app.services.circle_client import CircleClient
 from app.services.blockchain_service import blockchain_service
+from compiled_contracts.contract_constants import FUNDRAISINGTOKEN_ABI, IEO_ABI
 from app.schemas.payment import InvestmentCreate, PaymentInitiateRequest
 from app.core.config import settings
 from fastapi import HTTPException, status
@@ -93,29 +95,55 @@ class PaymentService:
                     detail="Project is not active for investments"
                 )
             
-            # Create investment record
-            investment = Investment(
-                id=str(uuid.uuid4()),
-                user_id=user.id,
-                project_id=project.id,
-                amount=payment_data.amount,
-                payment_status=PaymentStatus.PENDING
-            )
-            
-            db.add(investment)
-            db.commit()
-            db.refresh(investment)
+            # Validate investor wallet provided and whitelisted on token contract
+            if not payment_data.investor_wallet_address or not payment_data.investor_wallet_address.startswith('0x') or len(payment_data.investor_wallet_address) != 42:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid investor wallet address format")
+
+            try:
+                token_address = project.token_contract_address
+                if not token_address:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Project token address is not set")
+                token_contract = blockchain_service.w3.eth.contract(address=token_address, abi=FUNDRAISINGTOKEN_ABI)
+                is_whitelisted = token_contract.functions.isWhitelisted(payment_data.investor_wallet_address).call()
+            except Exception as e:
+                logger.error(f"Whitelist check failed: {e}")
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to verify wallet whitelist status")
+
+            if not is_whitelisted:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Wallet is not whitelisted for this token")
+
+            # Record or upsert wallet ownership mapping
+            try:
+                existing = db.query(WalletAddress).filter(WalletAddress.address == payment_data.investor_wallet_address).first()
+                if not existing:
+                    db.add(WalletAddress(user_id=user.id, address=payment_data.investor_wallet_address))
+                    db.commit()
+                elif existing.user_id != user.id:
+                    logger.warning(f"Wallet address {payment_data.investor_wallet_address} already mapped to different user {existing.user_id}")
+            except Exception as e:
+                logger.error(f"Failed to upsert wallet address mapping: {e}")
             
             # Initiate payment based on method
             if payment_data.payment_method == "fiat":
-                return await self._initiate_fiat_payment(db, investment, project)
+                result = await self._initiate_fiat_payment(db, None, project)
             elif payment_data.payment_method == "card":
-                return await self._initiate_card_payment(db, investment, project)
+                result = await self._initiate_card_payment(db, None, project)
             else:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid payment method. Supported: 'fiat' (SEPA) or 'card' (credit/debit)"
                 )
+
+            # Persist investor wallet on payment
+            try:
+                payment = db.query(Payment).filter(Payment.id == result.get("payment_id")).first()
+                if payment:
+                    payment.investor_wallet_address = payment_data.investor_wallet_address
+                    db.commit()
+            except Exception as e:
+                logger.warning(f"Failed to store investor wallet on payment: {e}")
+
+            return result
                 
         except HTTPException:
             raise
@@ -126,15 +154,15 @@ class PaymentService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to initiate payment"
             )
-    
-    async def _initiate_fiat_payment(self, db: Session, investment: Investment, project: Project) -> Dict[str, Any]:
+    # TODO: remove investment props completely
+    async def _initiate_fiat_payment(self, db: Session, investment: Optional[Investment], project: Project) -> Dict[str, Any]:
         """Initiate fiat payment through Circle (SEPA Bank Transfer)"""
         try:
             # Create payment record
             payment = Payment(
                 id=str(uuid.uuid4()),
-                investment_id=investment.id,
-                amount=investment.amount,
+                investment_id=None if investment is None else investment.id,
+                amount=investment.amount if investment else Decimal('0'),
                 currency="EUR",
                 payment_method="fiat",
                 status=PaymentStatus.PENDING
@@ -145,9 +173,9 @@ class PaymentService:
             db.refresh(payment)
             
             # Create Circle payment intent for SEPA
-            description = f"Investment in {project.name} - {investment.amount} EUR"
+            description = f"Investment in {project.name} - {payment.amount} EUR"
             circle_response = await self.circle_client.create_payment_intent(
-                amount=str(int(investment.amount * 100)),  # Convert to cents
+                amount=str(int(payment.amount * 100)),  # Convert to cents
                 currency="EUR",
                 description=description,
                 payment_method="sepaBankAccount"
@@ -186,14 +214,14 @@ class PaymentService:
                 detail="Failed to initiate fiat payment"
             )
     
-    async def _initiate_card_payment(self, db: Session, investment: Investment, project: Project) -> Dict[str, Any]:
+    async def _initiate_card_payment(self, db: Session, investment: Optional[Investment], project: Project) -> Dict[str, Any]:
         """Initiate card payment through Circle"""
         try:
             # Create payment record
             payment = Payment(
                 id=str(uuid.uuid4()),
-                investment_id=investment.id,
-                amount=investment.amount,
+                investment_id=None if investment is None else investment.id,
+                amount=investment.amount if investment else Decimal('0'),
                 currency="EUR",
                 payment_method="card",
                 status=PaymentStatus.PENDING
@@ -204,9 +232,9 @@ class PaymentService:
             db.refresh(payment)
             
             # Create Circle payment intent for card
-            description = f"Investment in {project.name} - {investment.amount} EUR"
+            description = f"Investment in {project.name} - {payment.amount} EUR"
             circle_response = await self.circle_client.create_payment_intent(
-                amount=str(int(investment.amount * 100)),  # Convert to cents
+                amount=str(int(payment.amount * 100)),  # Convert to cents
                 currency="EUR",
                 description=description,
                 payment_method="card"
@@ -324,8 +352,34 @@ class PaymentService:
                     
                     payout_id = payout_result["data"]["id"]
                     payment.circle_transfer_id = payout_id
+                    payment.crypto_payout_succeeded = True
                     
                     logger.info(f"USDC payout to IEO contract initiated: {payout_id}")
+
+                    # Record the user's investment on-chain via admin function
+                    try:
+                        ieo_contract = blockchain_service.w3.eth.contract(address=project.ieo_contract_address, abi=IEO_ABI)
+                        usdc_amount_units = int(investment.amount * 1000000)  # USDC 6 decimals
+                        gas_price = await blockchain_service.get_gas_price_with_safety_margin()
+                        nonce = blockchain_service._get_nonce()
+                        tx = ieo_contract.functions.adminRecordInvestment(payment.investor_wallet_address, usdc_amount_units).build_transaction({
+                            'from': blockchain_service.account.address,
+                            'gasPrice': gas_price,
+                            'nonce': nonce
+                        })
+                        gas_estimate = await blockchain_service.get_gas_limit_with_safety_margin(tx)
+                        tx['gas'] = gas_estimate
+                        tx_hash = await blockchain_service._send_transaction(tx, "Admin record investment")
+
+                        # Mark recorded and create DB investment record (confirmed amounts)
+                        payment.investment_recorded = True
+                        investment.status = "confirmed"
+                        investment.investment_time = datetime.utcnow()
+                        investment.usdc_amount = investment.amount
+                        # token_amount will be read from chain later by listener or can be calculated off-chain if needed
+                        logger.info(f"Investment recorded on-chain: {tx_hash}")
+                    except Exception as e:
+                        logger.error(f"Failed to record investment on-chain: {e}")
                     
                 except Exception as e:
                     logger.error(f"Failed to process on-ramp and IEO transfer: {str(e)}")
