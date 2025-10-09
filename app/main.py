@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.core.database import init_db
 from app.api.v1.api import api_router
 from app.services.event_listener import live_event_listener
+from app.services.pubsub_broker import broker
 
 def create_application() -> FastAPI:
     """Create and configure FastAPI application"""
@@ -51,6 +52,11 @@ async def lifespan(app: FastAPI):
         await live_event_listener.start()
     except Exception as e:
         logger.error(f"Failed to start live event listener: {e}")
+    # Start Redis broker for WebSocket fanout
+    try:
+        await broker.start()
+    except Exception as e:
+        logger.error(f"Failed to start Redis broker: {e}")
 
     # Yield control back to FastAPI
     yield
@@ -60,6 +66,10 @@ async def lifespan(app: FastAPI):
         await live_event_listener.stop()
     except Exception as e:
         logger.error(f"Failed to stop live event listener: {e}")
+    try:
+        await broker.stop()
+    except Exception as e:
+        logger.error(f"Failed to stop Redis broker: {e}")
 
 @app.get("/")
 def read_root():

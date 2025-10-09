@@ -188,6 +188,8 @@ class Settings(BaseSettings):
     
     # API settings
     api_prefix: str = Field(default="/api/v1", description="API prefix")
+    # Redis settings for scalable WebSocket/pubsub
+    redis_url: str = Field(default=os.getenv("REDIS_URL", "redis://localhost:6379/0"), description="Redis URL")
     
     class Config:
         env_file = ".env"
