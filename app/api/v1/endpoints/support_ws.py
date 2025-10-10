@@ -4,10 +4,8 @@ from app.core.database import get_db
 from app.core.security import verify_token
 from app.services.websocket_manager import ws_manager
 from app.services.support_service import support_service
-from app.models.user import User
 from app.services.user_service import UserService
 from app.services.pubsub_broker import broker
-import asyncio
 
 
 router = APIRouter()
@@ -25,6 +23,7 @@ async def ticket_chat_ws(
     if email is None:
         await websocket.close(code=4401)
         return
+    
     user = UserService.get_user_by_email(db, email)
     if user is None or not user.is_active:
         await websocket.close(code=4401)
@@ -44,6 +43,7 @@ async def ticket_chat_ws(
 
     await broker.start()
     await broker.subscribe_ticket(ticket_id, on_pubsub_message)
+    
     try:
         while True:
             data = await websocket.receive_json()
@@ -58,6 +58,7 @@ async def ticket_chat_ws(
                     "id": msg.id,
                     "ticket_id": ticket_id,
                     "sender_id": user.id,
+                    "sender_name": user.name,
                     "content": msg.content,
                     "created_at": msg.created_at.isoformat(),
                 },

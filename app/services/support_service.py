@@ -210,15 +210,19 @@ class SupportService:
     @staticmethod
     def add_message(db: Session, ticket_id: str, sender: User, data: TicketMessageCreate) -> TicketMessage:
         ticket = db.query(SupportTicket).filter(SupportTicket.id == ticket_id).first()
+
         if not ticket:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
         if ticket.status != TicketStatus.OPEN:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot add message to a closed ticket")
+        
         SupportService._ensure_can_participate(db, ticket_id, sender)
         msg = TicketMessage(ticket_id=ticket_id, sender_id=sender.id, content=data.content)
         db.add(msg)
         db.commit()
         db.refresh(msg)
+        # enrich for response
+        setattr(msg, "sender_name", sender.name)
         return msg
 
     @staticmethod
@@ -227,6 +231,14 @@ class SupportService:
         q = db.query(TicketMessage).filter(TicketMessage.ticket_id == ticket_id).order_by(TicketMessage.created_at.asc())
         total = q.count()
         items = q.offset((page - 1) * limit).limit(limit).all()
+        # attach sender_name
+        sender_ids = {m.sender_id for m in items}
+        if sender_ids:
+            users = db.query(User).filter(User.id.in_(list(sender_ids))).all()
+            users_by_id = {u.id: u for u in users}
+            for m in items:
+                u = users_by_id.get(m.sender_id)
+                setattr(m, "sender_name", u.name if u else "")
         return items, total
 
 

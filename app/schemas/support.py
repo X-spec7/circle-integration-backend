@@ -56,6 +56,7 @@ class TicketMessageOut(BaseModel):
     id: str
     ticket_id: str
     sender_id: str
+    sender_name: str
     content: str
     created_at: datetime
 
