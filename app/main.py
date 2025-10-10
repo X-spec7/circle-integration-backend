@@ -66,10 +66,14 @@ async def lifespan(app: FastAPI):
         await live_event_listener.stop()
     except Exception as e:
         logger.error(f"Failed to stop live event listener: {e}")
+
+# Ensure FastAPI uses the lifespan context (so init_db() runs at startup)
     try:
         await broker.stop()
     except Exception as e:
         logger.error(f"Failed to stop Redis broker: {e}")
+
+app.router.lifespan_context = lifespan
 
 @app.get("/")
 def read_root():

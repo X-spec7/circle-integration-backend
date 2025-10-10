@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
+from sqlalchemy import and_
 from typing import List, Optional, Tuple
 from fastapi import HTTPException, status
 
@@ -149,25 +149,6 @@ class SupportService:
         if category_id:
             q = q.filter(SupportTicket.category_id == category_id)
         tickets = q.order_by(SupportTicket.created_at.desc()).all()
-        # annotate unread_count and last_unread_message
-        for t in tickets:
-            # participant row holds last_read_at
-            participant = (
-                db.query(TicketParticipant)
-                .filter(TicketParticipant.ticket_id == t.id, TicketParticipant.user_id == user.id)
-                .first()
-            )
-            last_read_at = participant.last_read_at if participant else None
-            unread_q = db.query(TicketMessage).filter(TicketMessage.ticket_id == t.id)
-            if last_read_at is not None:
-                unread_q = unread_q.filter(TicketMessage.created_at > last_read_at)
-            unread_count = unread_q.count()
-            setattr(t, "unread_count", unread_count)
-            last_unread = unread_q.order_by(TicketMessage.created_at.desc()).first()
-            if last_unread:
-                setattr(t, "last_unread_message", last_unread)
-            else:
-                setattr(t, "last_unread_message", None)
         return tickets
 
     # Participants
@@ -191,6 +172,26 @@ class SupportService:
         db.commit()
         db.refresh(participant)
         return participant
+
+    @staticmethod
+    def remove_participant(db: Session, ticket_id: str, target_user_id: str, requester: User) -> None:
+        ticket = db.query(SupportTicket).filter(SupportTicket.id == ticket_id).first()
+        if not ticket:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+        if requester.user_type != UserType.ADMIN:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admin can remove participants")
+        # Prevent removing the creator via participant removal
+        if ticket.creator_id == target_user_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove the ticket creator")
+        participant = (
+            db.query(TicketParticipant)
+            .filter(TicketParticipant.ticket_id == ticket_id, TicketParticipant.user_id == target_user_id)
+            .first()
+        )
+        if not participant:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Participant not found")
+        db.delete(participant)
+        db.commit()
 
     # Messages
     @staticmethod
@@ -228,20 +229,6 @@ class SupportService:
         items = q.offset((page - 1) * limit).limit(limit).all()
         return items, total
 
-    @staticmethod
-    def mark_as_read(db: Session, ticket_id: str, user: User) -> None:
-        SupportService._ensure_can_participate(db, ticket_id, user)
-        participant = (
-            db.query(TicketParticipant)
-            .filter(TicketParticipant.ticket_id == ticket_id, TicketParticipant.user_id == user.id)
-            .first()
-        )
-        if not participant:
-            # creator may not have an explicit participant row (but we create it at ticket creation); handle gracefully
-            participant = TicketParticipant(ticket_id=ticket_id, user_id=user.id, is_admin_invited=False)
-            db.add(participant)
-        participant.last_read_at = func.now()
-        db.commit()
 
 
 support_service = SupportService()

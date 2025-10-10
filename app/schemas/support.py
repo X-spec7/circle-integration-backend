@@ -43,9 +43,6 @@ class SupportTicketOut(BaseModel):
     creator_id: str
     status: TicketStatus
     created_at: datetime
-    # UX additions
-    unread_count: int | None = None
-    last_unread_message: 'TicketMessageOut' | None = None
 
     class Config:
         from_attributes = True
@@ -87,7 +84,5 @@ class PaginatedMessages(BaseModel):
     page: int
     limit: int
     total_pages: int
-
-SupportTicketOut.model_rebuild()
 
 

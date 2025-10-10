@@ -104,13 +104,7 @@ def close_ticket(
     return support_service.close_ticket(db, ticket_id, current_user)
 
 
-@router.post("/tickets/{ticket_id}/read", status_code=status.HTTP_204_NO_CONTENT)
-def mark_ticket_read(
-    ticket_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    support_service.mark_as_read(db, ticket_id, current_user)
+# Unread tracking removed; mark-as-read endpoint deleted
 
 
 # Participants (admin invite)
@@ -122,6 +116,16 @@ def invite_participant(
     current_user: User = Depends(get_admin_user),
 ):
     return support_service.invite_participant(db, ticket_id, invite.user_id, current_user)
+
+
+@router.delete("/tickets/{ticket_id}/participants/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_participant(
+    ticket_id: str,
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    support_service.remove_participant(db, ticket_id, user_id, current_user)
 
 
 # Messages

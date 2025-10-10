@@ -36,4 +36,15 @@ def get_db():
 
 def init_db():
     """Initialize database tables"""
+    # Import models to register metadata before create_all
+    try:
+        import app.models.user  # noqa: F401
+        import app.models.project  # noqa: F401
+        import app.models.investment  # noqa: F401
+        import app.models.payment  # noqa: F401
+        import app.models.session  # noqa: F401
+        import app.models.support  # noqa: F401
+    except Exception:
+        # Best-effort; continue to create_all
+        pass
     Base.metadata.create_all(bind=engine) 
