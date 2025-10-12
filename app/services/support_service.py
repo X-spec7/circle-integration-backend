@@ -16,6 +16,7 @@ from app.schemas.support import (
     TicketCategoryUpdate,
     SupportTicketCreate,
     TicketMessageCreate,
+    TicketMessageUpdate,
 )
 
 
@@ -240,6 +241,33 @@ class SupportService:
                 u = users_by_id.get(m.sender_id)
                 setattr(m, "sender_name", u.name if u else "")
         return items, total
+
+    @staticmethod
+    def update_message(db: Session, ticket_id: str, message_id: str, user: User, data: TicketMessageUpdate) -> TicketMessage:
+        SupportService._ensure_can_participate(db, ticket_id, user)
+        msg = db.query(TicketMessage).filter(TicketMessage.id == message_id, TicketMessage.ticket_id == ticket_id).first()
+        if not msg:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+        # Only author or admin can edit
+        if user.user_type != UserType.ADMIN and msg.sender_id != user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to edit this message")
+        msg.content = data.content
+        db.commit()
+        db.refresh(msg)
+        setattr(msg, "sender_name", db.query(User).filter(User.id == msg.sender_id).first().name)
+        return msg
+
+    @staticmethod
+    def delete_message(db: Session, ticket_id: str, message_id: str, user: User) -> None:
+        SupportService._ensure_can_participate(db, ticket_id, user)
+        msg = db.query(TicketMessage).filter(TicketMessage.id == message_id, TicketMessage.ticket_id == ticket_id).first()
+        if not msg:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+        # Only author or admin can delete
+        if user.user_type != UserType.ADMIN and msg.sender_id != user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete this message")
+        db.delete(msg)
+        db.commit()
 
 
 

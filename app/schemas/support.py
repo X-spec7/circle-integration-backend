@@ -64,6 +64,10 @@ class TicketMessageOut(BaseModel):
         from_attributes = True
 
 
+class TicketMessageUpdate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=5000)
+
+
 class TicketParticipantInvite(BaseModel):
     user_id: str
 

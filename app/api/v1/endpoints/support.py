@@ -12,6 +12,7 @@ from app.schemas.support import (
     SupportTicketCreate,
     SupportTicketOut,
     TicketMessageCreate,
+    TicketMessageUpdate,
     TicketMessageOut,
     TicketParticipantInvite,
     TicketParticipantOut,
@@ -150,5 +151,26 @@ def list_messages(
     items, total = support_service.list_messages(db, ticket_id, current_user, page, limit)
     total_pages = (total + limit - 1) // limit
     return {"items": items, "total": total, "page": page, "limit": limit, "total_pages": total_pages}
+
+
+@router.put("/tickets/{ticket_id}/messages/{message_id}", response_model=TicketMessageOut)
+def update_message(
+    ticket_id: str,
+    message_id: str,
+    data: TicketMessageUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return support_service.update_message(db, ticket_id, message_id, current_user, data)
+
+
+@router.delete("/tickets/{ticket_id}/messages/{message_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_message(
+    ticket_id: str,
+    message_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    support_service.delete_message(db, ticket_id, message_id, current_user)
 
 
