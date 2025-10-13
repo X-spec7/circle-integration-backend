@@ -56,8 +56,9 @@ class RedisPubSubBroker:
     async def _listen_loop(self) -> None:
         assert self._redis is not None
         pubsub = self._redis.pubsub()
-        # subscribe to pattern for any ticket
+        # subscribe to patterns for tickets and notifications
         await pubsub.psubscribe("ticket:*:message")
+        await pubsub.psubscribe("notif:user:*")
         async for msg in pubsub.listen():
             if msg is None:
                 await asyncio.sleep(0)
@@ -77,6 +78,22 @@ class RedisPubSubBroker:
                 except Exception:
                     # swallow to keep loop alive
                     pass
+
+    async def publish_notification(self, user_id: str, message: dict) -> None:
+        if not self._pub:
+            await self.start()
+        channel = f"notif:user:{user_id}"
+        await self._pub.publish(channel, json.dumps(message))
+
+    async def subscribe_user_notifications(self, user_id: str, on_message: Callable[[dict], asyncio.Future]) -> None:
+        channel = f"notif:user:{user_id}"
+        self._callbacks[channel] = on_message
+        if self._sub_task is None:
+            self._sub_task = asyncio.create_task(self._listen_loop())
+
+    async def unsubscribe_user_notifications(self, user_id: str) -> None:
+        channel = f"notif:user:{user_id}"
+        self._callbacks.pop(channel, None)
 
 
 broker = RedisPubSubBroker()

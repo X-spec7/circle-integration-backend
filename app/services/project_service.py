@@ -11,6 +11,8 @@ from app.models.user import User
 from app.models.project import Project, ProjectStatus
 from app.schemas.project import ProjectCreate, ProjectDeploymentResponse
 from app.services.blockchain_service import blockchain_service, INVESTMENT_TOKEN_DECIMALS_DEFAULT
+from app.services.notification_service import notification_service
+from app.models.user import UserType
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +138,17 @@ class ProjectService:
             logger.info(f"📍 IEO contract: {deployment_result['ieo_contract_address']}")
             logger.info(f"📍 Reward tracking contract: {deployment_result['reward_tracking_contract_address']}")
             
+            # Notify investors about new project (best-effort, async publish)
+            try:
+                await notification_service.send_notifications(db, type("obj", (), {
+                    "title": f"New Project: {project.name}",
+                    "message": f"A new project '{project.name}' is now available.",
+                    "user_ids": None,
+                    "user_type": UserType.INVESTOR,
+                }))
+            except Exception as _:
+                pass
+
             return ProjectDeploymentResponse(
                 project_id=project.id,
                 token_contract_address=deployment_result["token_contract_address"],

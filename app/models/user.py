@@ -31,6 +31,7 @@ class User(Base):
     status = Column(Enum(UserStatus), default=UserStatus.ACTIVE)
     is_active = Column(Boolean, default=True)
     kyc_verified = Column(Boolean, default=False)
+    notifications_enabled = Column(Boolean, default=True)
     wallet_address = Column(String)  # For crypto payments
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
