@@ -41,6 +41,13 @@ class Settings(BaseSettings):
         default=os.getenv("COMPLYCUBE_API_KEY", ""),
         description="ComplyCube API key"
     )
+
+    # Document signing service settings
+    signing_service: str = Field(default=os.getenv("SIGNING_SERVICE", "docusign"), description="Signing provider")
+    docusign_client_id: str = Field(default=os.getenv("DOCUSIGN_CLIENT_ID", ""), description="DocuSign client ID")
+    docusign_client_secret: str = Field(default=os.getenv("DOCUSIGN_CLIENT_SECRET", ""), description="DocuSign client secret")
+    docusign_account_id: str = Field(default=os.getenv("DOCUSIGN_ACCOUNT_ID", ""), description="DocuSign account ID")
+    docusign_base_url: str = Field(default=os.getenv("DOCUSIGN_BASE_URL", "https://demo.docusign.net/restapi"), description="DocuSign base URL")
     complycube_base_url: str = Field(
         default=os.getenv("COMPLYCUBE_BASE_URL", "https://api.complycube.com/v1"),
         description="ComplyCube API base URL"

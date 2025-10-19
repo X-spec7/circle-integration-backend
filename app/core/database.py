@@ -46,6 +46,7 @@ def init_db():
         import app.models.support  # noqa: F401
         import app.models.notification  # noqa: F401
         import app.models.kyc  # noqa: F401
+        import app.models.docsign  # noqa: F401
     except Exception:
         # Best-effort; continue to create_all
         pass

@@ -7,6 +7,7 @@ from .session import UserSession
 from .whitelist_request import WhitelistRequest, WhitelistRequestStatus, WhitelistRequestAddress
 from .wallet_address import WalletAddress
 from .kyc import KycClient, KycPersonalDetails, KycCompanyDetails, KycDocument, KycStatus
+from .docsign import DocumentSigning, DocumentSigner, DocumentSigningStatus
 
 __all__ = [
     "User", "UserType", "UserStatus",
@@ -16,5 +17,6 @@ __all__ = [
     "WhitelistRequest", "WhitelistRequestStatus", "WhitelistRequestAddress",
     "WalletAddress"
     ,
-    "KycClient", "KycPersonalDetails", "KycCompanyDetails", "KycDocument", "KycStatus"
+    "KycClient", "KycPersonalDetails", "KycCompanyDetails", "KycDocument", "KycStatus",
+    "DocumentSigning", "DocumentSigner", "DocumentSigningStatus"
 ]
