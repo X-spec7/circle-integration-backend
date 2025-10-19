@@ -35,6 +35,20 @@ class Settings(BaseSettings):
         default=os.getenv("CIRCLE_API_KEY", ""),
         description="Circle API key"
     )
+
+    # ComplyCube settings
+    complycube_api_key: str = Field(
+        default=os.getenv("COMPLYCUBE_API_KEY", ""),
+        description="ComplyCube API key"
+    )
+    complycube_base_url: str = Field(
+        default=os.getenv("COMPLYCUBE_BASE_URL", "https://api.complycube.com/v1"),
+        description="ComplyCube API base URL"
+    )
+    complycube_webhook_secret: str = Field(
+        default=os.getenv("COMPLYCUBE_WEBHOOK_SECRET", ""),
+        description="ComplyCube webhook secret"
+    )
     circle_base_url: str = Field(
         default=os.getenv("CIRCLE_BASE_URL", "https://api.circle.com/v1"),
         description="Circle API base URL"

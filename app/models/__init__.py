@@ -6,6 +6,7 @@ from .payment import Payment
 from .session import UserSession
 from .whitelist_request import WhitelistRequest, WhitelistRequestStatus, WhitelistRequestAddress
 from .wallet_address import WalletAddress
+from .kyc import KycClient, KycPersonalDetails, KycCompanyDetails, KycDocument, KycStatus
 
 __all__ = [
     "User", "UserType", "UserStatus",
@@ -14,4 +15,6 @@ __all__ = [
     "Payment", "UserSession",
     "WhitelistRequest", "WhitelistRequestStatus", "WhitelistRequestAddress",
     "WalletAddress"
-] 
+    ,
+    "KycClient", "KycPersonalDetails", "KycCompanyDetails", "KycDocument", "KycStatus"
+]

@@ -40,6 +40,7 @@ class User(Base):
     projects = relationship("Project", back_populates="owner")
     investments = relationship("Investment", back_populates="investor")
     sessions = relationship("UserSession", back_populates="user")
+    kyc_clients = relationship("KycClient", back_populates="user")
 
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}', type='{self.user_type}')>" 
