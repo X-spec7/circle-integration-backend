@@ -2,48 +2,6 @@
 
 A scalable FastAPI backend with user registration, login functionality, and user type support (SME and Investor) using PostgreSQL database.
 
-## Features
-
-- **User Authentication**: Registration and login with JWT tokens
-- **User Types**: Support for SME (Small and Medium Enterprises) and Investor users
-- **Scalable Architecture**: Clean, modular structure for easy feature additions
-- **PostgreSQL Integration**: Robust database with SQLAlchemy ORM
-- **Password Security**: Bcrypt hashing for secure password storage
-- **API Documentation**: Interactive Swagger UI and ReDoc
-- **Database Migrations**: Alembic for schema management
-- **Environment Management**: Secure configuration with dotenv
-- **CORS Support**: Cross-origin resource sharing middleware
-- **Comprehensive Validation**: Pydantic schemas for request/response validation
-
-## Architecture
-
-The application follows a clean, scalable architecture:
-
-```
-app/
-├── core/                 # Core configuration and utilities
-│   ├── config.py        # Application settings
-│   ├── database.py      # Database connection
-│   └── security.py      # Authentication utilities
-├── models/              # SQLAlchemy database models
-│   └── user.py          # User model with types
-├── schemas/             # Pydantic validation schemas
-│   ├── user.py          # User request/response schemas
-│   └── auth.py          # Authentication schemas
-├── services/            # Business logic layer
-│   └── user_service.py  # User operations
-├── api/                 # API routes
-│   ├── deps.py          # Dependency injection
-│   └── v1/              # API version 1
-│       ├── api.py       # Main API router
-│       └── endpoints/   # Individual endpoint modules
-│           ├── auth.py  # Authentication endpoints
-│           └── users.py # User management endpoints
-├── utils/               # Utility functions
-│   └── response.py      # Standardized responses
-└── main.py              # FastAPI application
-```
-
 ## User Types
 
 The system supports two user types:
@@ -56,6 +14,7 @@ The system supports two user types:
 - Python 3.8+
 - PostgreSQL database running in Docker
 - pip (Python package manager)
+- Redis (for WebSocket fanout across instances)
 
 ## Setup
 
@@ -85,6 +44,21 @@ The system supports two user types:
    ALGORITHM=HS256
    ACCESS_TOKEN_EXPIRE_MINUTES=30
    DEBUG=false
+   # Redis for WS fanout
+   REDIS_URL=redis://localhost:6379/0
+   # ComplyCube (KYC)
+   COMPLYCUBE_BASE_URL=https://api.complycube.com/v1
+   # IMPORTANT: include 'Bearer ' prefix unless code handles it for you.
+   COMPLYCUBE_API_KEY=Bearer sk_test_xxx
+   COMPLYCUBE_WEBHOOK_SECRET=your-complycube-webhook-secret
+   # Circle (see FIAT_PAYMENTS.md for details)
+   CIRCLE_API_KEY=
+   CIRCLE_BASE_URL=https://api.circle.com/v1
+   CIRCLE_MINT_WALLET_ID=
+   # Blockchain (optional, for realtime event listener)
+   NETWORK=SEPOLIA
+   SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_PROJECT_ID
+   SEPOLIA_WS_RPC_URL=wss://sepolia.infura.io/ws/v3/YOUR_PROJECT_ID
    ```
    
    Replace the values with your actual database credentials and a secure secret key.
@@ -100,6 +74,11 @@ The system supports two user types:
    ```bash
    make dev
    ```
+
+### Optional: Start Redis locally
+```bash
+docker run -p 6379:6379 --name redis -d redis:7
+```
 
 ## Available Commands
 
@@ -142,7 +121,12 @@ Once the server is running, access:
 - **Swagger UI**: http://localhost:8888/docs
 - **ReDoc**: http://localhost:8888/redoc
 
-## 🚀 Development
+### API Guides
+- KYC (ComplyCube): see `KYC_API.md`
+- Fiat Payments (Circle): see `FIAT_PAYMENTS.md`
+- WebSockets overview and client examples: see `WEBSOCKETS.md`
+
+##  Development
 
 ### Available Make Commands
 ```bash
@@ -162,6 +146,13 @@ make clean         # Clean up cache files
 make dev
 ```
 
+Notes:
+- WebSockets endpoints:
+  - `/api/v1/ws/notifications?token=<JWT>`
+  - `/api/v1/ws/tickets/{ticket_id}?token=<JWT>`
+- WS authentication uses a `token` query param for the HTTP→WS upgrade. Use WSS in production and short-lived JWTs.
+- Redis is required for cross-instance fanout; the app will still work locally without Redis if you are on a single instance, but fanout is disabled.
+
 ### Running in Production Mode
 ```bash
 make run
@@ -178,36 +169,3 @@ make migrate-up
 # Rollback migration
 make migrate-down
 ```
-
-## Production Deployment
-
-For production deployment:
-
-1. **Environment Configuration**:
-   - Set `DEBUG=false`
-   - Use strong `SECRET_KEY`
-   - Configure proper `CORS_ORIGINS`
-   - Use production database URL
-
-2. **Security Considerations**:
-   - Use HTTPS
-   - Configure proper CORS origins
-   - Set up rate limiting
-   - Use environment variables for secrets
-   - Enable database connection pooling
-
-3. **Performance Optimization**:
-   - Use production ASGI server (Gunicorn)
-   - Configure database connection pooling
-   - Set up proper logging
-   - Enable caching where appropriate
-
-## 🔄 Adding New Features
-
-The modular structure makes it easy to add new features:
-
-1. **Add new models** in `app/models/`
-2. **Create schemas** in `app/schemas/`
-3. **Implement business logic** in `app/services/`
-4. **Add API endpoints** in `app/api/v1/endpoints/`
-5. **Update dependencies** in `app/api/deps.py`
