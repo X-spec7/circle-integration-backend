@@ -1,7 +1,6 @@
 from typing import Dict, Set
 from fastapi import WebSocket
 
-
 class WebSocketConnectionManager:
     """In-memory manager mapping ticket rooms to websocket connections"""
 
@@ -32,5 +31,6 @@ class WebSocketConnectionManager:
 
 
 ws_manager = WebSocketConnectionManager()
+
 
 

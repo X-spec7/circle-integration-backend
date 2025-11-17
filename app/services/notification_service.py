@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 from app.models.notification import Notification
 from app.models.user import User, UserType
 from app.schemas.notification import NotificationCreate
-from app.services.pubsub_broker import broker
-from app.services.websocket_manager import ws_manager
+from app.services.ws.pubsub_broker import broker
+from app.services.ws.websocket_manager import ws_manager
 
 
 NOTIF_CHANNEL_PREFIX = "notif:user:"

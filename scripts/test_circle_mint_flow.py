@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Test script for Circle Mint payment flow (no wallet access required)
 """

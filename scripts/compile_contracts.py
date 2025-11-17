@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Smart Contract Compilation Script
 Compiles Solidity contracts and generates Python constants

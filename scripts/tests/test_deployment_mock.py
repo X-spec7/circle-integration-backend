@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Mock Contract Deployment Test
 Simulates the deployment process and shows what the contracts would look like

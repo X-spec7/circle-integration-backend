@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Test script for Circle payment flow
 Tests the complete flow: Card Payment → EUR → EURC → USDC → Escrow

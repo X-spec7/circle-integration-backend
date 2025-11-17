@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Test Contract Deployment Script
 Deploys test ERC20 token and escrow contracts on Polygon testnet (Mumbai)

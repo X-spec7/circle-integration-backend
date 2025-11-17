@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Create Test Wallet Script
 Generates a test wallet for Polygon Mumbai testnet deployment

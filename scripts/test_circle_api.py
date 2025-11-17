@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Test script to check Circle API access and available endpoints
 """

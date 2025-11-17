@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Real Deployment Test with Contract Verification
 Shows what a real deployment would look like with actual contract addresses

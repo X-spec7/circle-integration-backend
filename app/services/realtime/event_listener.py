@@ -124,4 +124,6 @@ class LiveEventListener:
         finally:
             db.close()
 
-live_event_listener = LiveEventListener() 
+live_event_listener = LiveEventListener()
+
+

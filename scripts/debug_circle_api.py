@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Debug script to see raw Circle API responses
 """

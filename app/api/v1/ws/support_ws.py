@@ -2,10 +2,10 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import verify_token
-from app.services.websocket_manager import ws_manager
+from app.services.ws.websocket_manager import ws_manager
 from app.services.support_service import support_service
 from app.services.user_service import UserService
-from app.services.pubsub_broker import broker
+from app.services.ws.pubsub_broker import broker
 
 
 router = APIRouter()

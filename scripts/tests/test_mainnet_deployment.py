@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Mainnet Contract Deployment Test
 Deploys ERC20 token and escrow contracts on Polygon mainnet

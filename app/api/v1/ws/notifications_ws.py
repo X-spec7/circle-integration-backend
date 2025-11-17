@@ -2,8 +2,8 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import verify_token
-from app.services.websocket_manager import ws_manager
-from app.services.pubsub_broker import broker
+from app.services.ws.websocket_manager import ws_manager
+from app.services.ws.pubsub_broker import broker
 from app.services.user_service import UserService
 
 
@@ -47,4 +47,5 @@ async def notifications_ws(
             pass
     finally:
         await broker.unsubscribe_user_notifications(user.id)
+
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Fix ABI boolean values from JavaScript to Python format
 """
