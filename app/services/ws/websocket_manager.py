@@ -32,5 +32,3 @@ class WebSocketConnectionManager:
 
 ws_manager = WebSocketConnectionManager()
 
-
-

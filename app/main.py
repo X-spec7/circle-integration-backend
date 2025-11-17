@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import init_db
 from app.api.v1.api import api_router
-from app.services.realtime.event_listener import live_event_listener
+from app.services.blockchain_events.event_listener import live_event_listener
 from app.services.ws.pubsub_broker import broker
 
 def create_application() -> FastAPI:
