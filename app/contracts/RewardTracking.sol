@@ -15,7 +15,7 @@ contract RewardTracking is Ownable, IRewardTracking {
     uint8 internal constant REENTRANCY_GUARD_ENTERED = 2;
     
     // Constants
-    address public constant override USDC_ADDRESS = 0x966c69ae5b4fB4744e976EB058cfe7592bD935d2;
+    address public constant override USDC_ADDRESS = 0x8A34CCD381283f68fF9E4301Df8f266562212f70;
     uint256 public constant override PRECISION = 1e18;
 
     // Immutable addresses (set in constructor)

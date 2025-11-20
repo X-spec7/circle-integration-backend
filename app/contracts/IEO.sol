@@ -16,10 +16,10 @@ contract IEO is Ownable, IIEO {
     uint8 internal constant REENTRANCY_GUARD_NOT_ENTERED = 1;
     uint8 internal constant REENTRANCY_GUARD_ENTERED = 2;
     
-    address public constant override USDC_ADDRESS = 0x966c69ae5b4fB4744e976EB058cfe7592bD935d2;
+    address public constant override USDC_ADDRESS = 0x8A34CCD381283f68fF9E4301Df8f266562212f70;
     uint8 public constant MAX_PRICE_DECIMALS = 18;
     uint8 public constant TOKEN_DECIMALS = 18;
-    uint8 public constant USDC_DECIMALS = 18;
+    uint8 public constant USDC_DECIMALS = 6;
     
     address public immutable override tokenAddress;
     address public immutable override admin;

@@ -4,8 +4,8 @@ pragma solidity ^0.8.24;
 import "./interfaces/IPriceOracle.sol";
 
 contract MockPriceOracle is IPriceOracle {
-    uint256 public constant MOCK_PRICE = 100 * 10**18;
-    uint256 public constant MOCK_DECIMALS = 18;
+    uint256 public constant MOCK_PRICE = 100 * 10**6;
+    uint256 public constant MOCK_DECIMALS = 6;
     
     function getPrice(address token) 
         external 
