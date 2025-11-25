@@ -58,6 +58,10 @@ migrate-down:
 	@echo "Rolling back last migration..."
 	. $(VENV) && python3 -m alembic downgrade -1
 
+# Compile contracts
+compile:
+	python3 scripts/compile_contracts.py
+
 # Clean up cache and temporary files
 clean:
 	@echo "Cleaning up..."
