@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional, List
+from web3 import Web3
 
 from app.core.database import SessionLocal
 from app.models.project import Project
@@ -73,7 +74,10 @@ class BlockchainEventCatchUp:
         retries = 0
         while True:
             try:
-                contract = self.w3.eth.contract(address=project.ieo_contract_address, abi=IEO_ABI)
+                contract = self.w3.eth.contract(
+                    address=Web3.to_checksum_address(project.ieo_contract_address),
+                    abi=IEO_ABI
+                )
                 event_abi = contract.events.InvestmentMade
                 logs = event_abi().get_logs(fromBlock=attempt_from, toBlock=attempt_to)
                 if logs:

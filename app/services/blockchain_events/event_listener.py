@@ -49,7 +49,10 @@ class LiveEventListener:
             db.close()
 
     async def _listen_project_investments(self, project_id: str, ieo_address: str):
-        contract = self.w3.eth.contract(address=ieo_address, abi=IEO_ABI)
+        contract = self.w3.eth.contract(
+            address=Web3.to_checksum_address(ieo_address),
+            abi=IEO_ABI
+        )
         event = contract.events.InvestmentMade
 
         # True subscription style via node-side filter; get_new_entries picks up new logs

@@ -182,6 +182,8 @@ class BlockchainService:
             # Use provided business admin or default to deployer
             if business_admin is None:
                 business_admin = self.account.address
+            # Ensure business admin address is checksummed for on-chain usage
+            business_admin = Web3.to_checksum_address(business_admin)
             
             # Get gas price and nonce
             gas_price = await self.get_gas_price_with_safety_margin()
@@ -243,6 +245,11 @@ class BlockchainService:
             if not IEO_BYTECODE or IEO_BYTECODE == "0x":
                 raise Exception("IEO contract not compiled")
             
+            # Ensure addresses are checksummed for on-chain usage
+            token_address = Web3.to_checksum_address(token_address)
+            admin_address = Web3.to_checksum_address(admin_address)
+            business_admin_address = Web3.to_checksum_address(business_admin_address)
+
             # Values are pre-scaled (project service applies 10^decimals). Pass through unchanged.
             min_scaled = int(min_investment)
             max_scaled = int(max_investment)
@@ -302,6 +309,10 @@ class BlockchainService:
         try:
             logger.info(f"🚀 Deploying RewardTracking contract...")
             logger.info(f"📋 Contract details: token={token_address}, ieo_contract={ieo_contract_address}")
+
+            # Ensure addresses are checksummed for on-chain usage
+            token_address = Web3.to_checksum_address(token_address)
+            ieo_contract_address = Web3.to_checksum_address(ieo_contract_address)
             
             if not REWARDTRACKING_BYTECODE or REWARDTRACKING_BYTECODE == "0x":
                 raise Exception("RewardTracking contract not compiled")
@@ -438,7 +449,7 @@ class BlockchainService:
             
             # Create IEO contract instance
             ieo_contract = self.w3.eth.contract(
-                address=ieo_contract_address,
+                address=Web3.to_checksum_address(ieo_contract_address),
                 abi=IEO_ABI
             )
             
@@ -447,7 +458,7 @@ class BlockchainService:
             nonce = self._get_nonce()
             
             # Build transaction - function name in IEO.sol is setPriceOracle(address)
-            tx = ieo_contract.functions.setPriceOracle(oracle_address).build_transaction({
+            tx = ieo_contract.functions.setPriceOracle(Web3.to_checksum_address(oracle_address)).build_transaction({
                 'from': self.account.address,
                 'gasPrice': gas_price,
                 'nonce': nonce
@@ -475,7 +486,7 @@ class BlockchainService:
             
             # Create IEO contract instance
             ieo_contract = self.w3.eth.contract(
-                address=ieo_contract_address,
+                address=Web3.to_checksum_address(ieo_contract_address),
                 abi=IEO_ABI
             )
             
@@ -529,12 +540,14 @@ class BlockchainService:
             
             # Create oracle contract instance
             oracle_contract = self.w3.eth.contract(
-                address=oracle_contract_address,
+                address=Web3.to_checksum_address(oracle_contract_address),
                 abi=MOCKPRICEORACLE_ABI
             )
             
-            # Call the oracle contract
-            price, decimals, timestamp = oracle_contract.functions.getPrice(token_address).call()
+            # Call the oracle contract using checksum token address
+            price, decimals, timestamp = oracle_contract.functions.getPrice(
+                Web3.to_checksum_address(token_address)
+            ).call()
             
             price_data = {
                 'price': price,
@@ -549,15 +562,34 @@ class BlockchainService:
             logger.error(f"❌ Failed to get token price: {str(e)}")
             raise
 
+    async def is_whitelisted(self, token_contract_address: str, address: str) -> bool:
+        """Check if an address is whitelisted on a FundraisingToken contract."""
+        try:
+            token_contract = self.w3.eth.contract(
+                address=Web3.to_checksum_address(token_contract_address),
+                abi=FUNDRAISINGTOKEN_ABI
+            )
+            return token_contract.functions.isWhitelisted(
+                Web3.to_checksum_address(address)
+            ).call()
+        except Exception as e:
+            logger.error(f"❌ Failed to check whitelist status for {address} on {token_contract_address}: {e}")
+            return False
+
     # New methods: update business admin on Token and IEO contracts
     async def set_token_business_admin(self, token_contract_address: str, new_business_admin: str) -> str:
         """Set business admin on FundraisingToken contract"""
         try:
             logger.info(f"👤 Setting token business admin to {new_business_admin} on {token_contract_address}")
-            token_contract = self.w3.eth.contract(address=token_contract_address, abi=FUNDRAISINGTOKEN_ABI)
+            token_contract = self.w3.eth.contract(
+                address=Web3.to_checksum_address(token_contract_address),
+                abi=FUNDRAISINGTOKEN_ABI
+            )
             gas_price = await self.get_gas_price_with_safety_margin()
             nonce = self._get_nonce()
-            tx = token_contract.functions.setBusinessAdmin(new_business_admin).build_transaction({
+            tx = token_contract.functions.setBusinessAdmin(
+                Web3.to_checksum_address(new_business_admin)
+            ).build_transaction({
                 'from': self.account.address,
                 'gasPrice': gas_price,
                 'nonce': nonce
@@ -575,10 +607,15 @@ class BlockchainService:
         """Set business admin on IEO contract"""
         try:
             logger.info(f"👤 Setting IEO business admin to {new_business_admin} on {ieo_contract_address}")
-            ieo_contract = self.w3.eth.contract(address=ieo_contract_address, abi=IEO_ABI)
+            ieo_contract = self.w3.eth.contract(
+                address=Web3.to_checksum_address(ieo_contract_address),
+                abi=IEO_ABI
+            )
             gas_price = await self.get_gas_price_with_safety_margin()
             nonce = self._get_nonce()
-            tx = ieo_contract.functions.setBusinessAdmin(new_business_admin).build_transaction({
+            tx = ieo_contract.functions.setBusinessAdmin(
+                Web3.to_checksum_address(new_business_admin)
+            ).build_transaction({
                 'from': self.account.address,
                 'gasPrice': gas_price,
                 'nonce': nonce

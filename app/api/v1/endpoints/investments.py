@@ -353,10 +353,10 @@ async def create_crypto_investment(
             )
         
         # Check if investor is whitelisted
-        if project.token_contract_address:
+        if project.token_contract_address and current_user.wallet_address:
             is_whitelisted = await blockchain_service.is_whitelisted(
                 token_contract_address=project.token_contract_address,
-                address=current_user.wallet_address or ""
+                address=current_user.wallet_address
             )
             if not is_whitelisted:
                 raise HTTPException(

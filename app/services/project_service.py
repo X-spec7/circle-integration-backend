@@ -6,6 +6,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from datetime import datetime
+from web3 import Web3
 
 from app.models.user import User
 from app.models.project import Project, ProjectStatus
@@ -77,7 +78,7 @@ class ProjectService:
                     "name": project_data.name,
                     "symbol": project_data.symbol,
                     "initial_supply": project_data.initial_supply,
-                    "business_admin_wallet": project_data.business_admin_wallet,
+                    "business_admin_wallet": Web3.to_checksum_address(project_data.business_admin_wallet),
                     "delay_days": project_data.delay_days,
                     "min_investment": min_investment_scaled,
                     "max_investment": max_investment_scaled

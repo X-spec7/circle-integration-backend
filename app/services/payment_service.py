@@ -3,6 +3,7 @@ from typing import Optional, Dict, Any
 from decimal import Decimal
 import uuid
 from datetime import datetime
+from web3 import Web3
 
 from app.models.investment import Investment, PaymentMethod, PaymentStatus
 from app.models.payment import Payment
@@ -103,8 +104,12 @@ class PaymentService:
                 token_address = project.token_contract_address
                 if not token_address:
                     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Project token address is not set")
-                token_contract = blockchain_service.w3.eth.contract(address=token_address, abi=FUNDRAISINGTOKEN_ABI)
-                is_whitelisted = token_contract.functions.isWhitelisted(payment_data.investor_wallet_address).call()
+                token_contract = blockchain_service.w3.eth.contract(
+                    address=Web3.to_checksum_address(token_address),
+                    abi=FUNDRAISINGTOKEN_ABI
+                )
+                investor_checksum = Web3.to_checksum_address(payment_data.investor_wallet_address)
+                is_whitelisted = token_contract.functions.isWhitelisted(investor_checksum).call()
             except Exception as e:
                 logger.error(f"Whitelist check failed: {e}")
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to verify wallet whitelist status")
@@ -358,11 +363,15 @@ class PaymentService:
 
                     # Record the user's investment on-chain via admin function
                     try:
-                        ieo_contract = blockchain_service.w3.eth.contract(address=project.ieo_contract_address, abi=IEO_ABI)
+                        ieo_contract = blockchain_service.w3.eth.contract(
+                            address=Web3.to_checksum_address(project.ieo_contract_address),
+                            abi=IEO_ABI
+                        )
                         usdc_amount_units = int(investment.amount * 1000000)  # USDC 6 decimals
                         gas_price = await blockchain_service.get_gas_price_with_safety_margin()
                         nonce = blockchain_service._get_nonce()
-                        tx = ieo_contract.functions.adminRecordInvestment(payment.investor_wallet_address, usdc_amount_units).build_transaction({
+                        investor_checksum = Web3.to_checksum_address(payment.investor_wallet_address)
+                        tx = ieo_contract.functions.adminRecordInvestment(investor_checksum, usdc_amount_units).build_transaction({
                             'from': blockchain_service.account.address,
                             'gasPrice': gas_price,
                             'nonce': nonce
